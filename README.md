@@ -7,8 +7,12 @@ un'API centrale (Hub Orchestrator) e mai direttamente con i backend interni
 (Jellyfin, Immich, filesystem, database).
 
 Le specifiche complete sono in [`docs/SPEC_V1.md`](docs/SPEC_V1.md) e
-[`docs/SPEC_V2.md`](docs/SPEC_V2.md); le decisioni su strumenti esterni in
-[`docs/EXTERNAL_TOOLS.md`](docs/EXTERNAL_TOOLS.md).
+[`docs/SPEC_V2.md`](docs/SPEC_V2.md); lo stato di implementazione,
+checklist per fase e decisioni prese lungo il percorso sono in
+[`docs/SPECIFICHE.md`](docs/SPECIFICHE.md); le decisioni su strumenti
+esterni in [`docs/EXTERNAL_TOOLS.md`](docs/EXTERNAL_TOOLS.md). Per chi
+sviluppa sul codice, vedi [`CLAUDE.md`](CLAUDE.md) (convenzioni,
+architettura, comandi).
 
 ```
 Dispositivo utente → React Web App → Hub API / Orchestrator → Backend interni → SSD / dischi dati
