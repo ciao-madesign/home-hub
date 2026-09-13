@@ -84,8 +84,7 @@ ancora specificato/fornito), controller Bluetooth/USB (nessuna
 integrazione: è un livello OS/browser, non un backend da orchestrare),
 supporto formati emulatore oltre alla mappa piattaforma→emulatore di
 default (RetroArch, non verificata contro un'installazione reale).
-**Vedi la nota architetturale in §3** su dove devono girare fisicamente
-gli emulatori (host vs container Docker) prima di questo deploy.
+Deciso: l'Hub API gira sull'host (systemd), non in Docker — vedi §2.
 
 ### Fase 8 — Storage e Backup
 ⬜ Non iniziata. Il monitoraggio storage di base (spazio libero, soglia
@@ -194,29 +193,28 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
   "Continua a guardare" già gestito lato Hub), andrebbe creato un account
   Jellyfin/Immich per ogni utente Hub alla creazione del profilo.
-- **⚠️ Gaming — dove devono girare fisicamente gli emulatori: questione
-  architetturale da chiarire prima del deploy.** L'Hub API lancia
-  l'emulatore come processo figlio (`child_process.spawn`) del proprio
-  processo Node. Se l'Hub API gira in un container Docker (come
-  `api` in `infra/docker-compose.yml`, coerente con Jellyfin/Immich/
-  Download Manager), l'emulatore girerebbe *dentro* quel container —
-  che normalmente non ha accesso al display fisico del Wyse (serve
-  passthrough X11/Wayland + `/dev/dri`, configurazione non banale e
-  fragile per un'app grafica interattiva con input da controller).
-  La spec stessa suggerisce che Moonlight (per il Remote Gaming) gira
-  "sul Wyse" come app di sistema, non containerizzata — probabilmente lo
-  stesso deve valere per gli emulatori retro. Due strade possibili, da
-  decidere con l'utente:
-  1. L'Hub API (o solo il modulo Gaming) gira **sull'host**, non in
-     Docker, con accesso diretto al display.
-  2. L'Hub API resta in Docker e delega l'avvio effettivo a un piccolo
-     **agente locale sull'host** (stesso pattern già usato per lo
-     spegnimento remoto sicuro dei PC gaming), richiamato via HTTP/socket
-     locale.
-  Il codice attuale (`lib/gaming/emulator.ts`) assume implicitamente
-  l'opzione 1 (spawn diretto) — funziona, ma solo se il processo che lo
-  esegue ha davvero accesso al display. Non affrontato ora perché
-  dipende da una decisione di deployment, non di feature.
+- **Hub API fuori da Docker, sull'host (decisione presa dall'utente)**:
+  l'Hub API lancia gli emulatori come processo figlio
+  (`child_process.spawn`) del proprio processo Node, e quel processo deve
+  avere accesso diretto allo schermo/controller del Wyse — cosa che un
+  container Docker normalmente non ha (servirebbe passthrough X11/Wayland
+  + `/dev/dri`, configurazione non banale per un'app interattiva). La
+  stessa logica vale per Moonlight (Remote Gaming, V2): la spec lo vuole
+  come app di sistema sul Wyse, non containerizzata.
+  Valutate due strade — (1) far girare l'Hub API sull'host con accesso
+  diretto al display, oppure (2) tenerla in Docker e delegare l'avvio a un
+  piccolo agente locale sull'host — **è stata scelta la (1)**: l'Hub API
+  gira come servizio **systemd** direttamente sul Wyse (vedi
+  `infra/systemd/home-hub-api.service`), mentre Web App/Jellyfin/Immich
+  restano containerizzati (`infra/docker-compose.yml`). Motivazione: per
+  il gioco locale e il Remote Gaming la latenza durante il gioco dipende
+  solo dal collegamento diretto Moonlight↔Sunshine, mai dall'Hub API —
+  quindi la scelta non incide sulla fluidità del gioco; incide invece
+  sulla semplicità, ed evitare la configurazione di passthrough
+  grafico/dispositivi in un container è più semplice e affidabile.
+  Effetto collaterale positivo: anche Wake-on-LAN (broadcast UDP) e la
+  lettura di temperatura/CPU reali (§30) diventano più semplici senza
+  dover concedere privilegi di rete/host estesi a un container.
 - **Selezione automatica della macchina di esecuzione**: oggi "l'Hub
   seleziona automaticamente" è in realtà "usa la macchina assegnata al
   gioco, di default quella locale" — non c'è ancora un'euristica che

@@ -1,0 +1,30 @@
+[Unit]
+Description=Home Hub API (Hub Orchestrator)
+# I backend Docker (Jellyfin/Immich) sono raggiunti via localhost: attendere
+# che la rete sia pronta evita fallimenti di connessione all'avvio.
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adatta questo percorso a dove hai clonato il repository sul Wyse.
+WorkingDirectory=/opt/home-hub/apps/api
+EnvironmentFile=/opt/home-hub/apps/api/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=3
+
+# Least privilege (§26): esegui con un utente dedicato non privilegiato,
+# non come root. Crealo con:
+#   useradd --system --home /opt/home-hub --shell /usr/sbin/nologin homehub
+#   chown -R homehub:homehub /opt/home-hub
+User=homehub
+Group=homehub
+
+# yt-dlp installato via "pip install --user" finisce in ~/.local/bin, che
+# di norma non è nel PATH di systemd: o imposta HUB_YTDLP_PATH nel .env con
+# il percorso assoluto, o aggiungilo qui.
+# Environment=PATH=/usr/bin:/usr/local/bin:/opt/home-hub/.local/bin
+
+[Install]
+WantedBy=multi-user.target

@@ -47,6 +47,20 @@ Dispositivo utente → React Web App → Hub API / Orchestrator → Backend inte
 - **Download**: yt-dlp come processo esterno (`child_process`), WebTorrent
   come libreria embedded nel processo Node dell'Hub API (non un servizio
   Docker separato).
+- **Gaming**: emulatori lanciati come processo figlio dell'Hub API
+  (`child_process`), stesso motivo per cui l'Hub API non è containerizzata
+  (vedi sotto).
+- **Deploy misto, non "tutto in Docker"**: l'**Hub API gira sull'host**
+  come servizio **systemd** (`infra/systemd/home-hub-api.service`), NON in
+  un container. Web App, Jellyfin e Immich restano in Docker
+  (`infra/docker-compose.yml`). Motivo: gli emulatori (Gaming) e in
+  futuro Moonlight (Remote Gaming, V2) devono disegnare direttamente sullo
+  schermo del Wyse e leggere i controller — un container isolato non ha
+  quell'accesso di norma. Decisione presa con l'utente, vedi
+  `docs/SPECIFICHE.md` §2. Jellyfin/Immich restano containerizzati (sono
+  raggiunti via HTTP su `localhost:<porta>`, non hanno bisogno di accesso
+  al display) e nginx (`web`) raggiunge l'Hub API sull'host tramite
+  `host.docker.internal`.
 
 ## Convenzioni stabilite (da rispettare in nuovo codice)
 

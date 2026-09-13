@@ -135,10 +135,40 @@ npm run typecheck
 npm run build
 ```
 
-## Deploy (Docker Compose)
+## Deploy
+
+Architettura mista, non "tutto in Docker": l'**Hub API gira direttamente
+sull'host** (systemd), mentre **Web App, Jellyfin e Immich restano in
+Docker**. Motivo: il modulo Gaming deve avviare emulatori/Moonlight con
+accesso diretto a schermo e controller, cosa che un container non ha di
+norma — vedi `docs/SPECIFICHE.md` §2/§3 per il ragionamento completo. Come
+effetto collaterale utile, anche Wake-on-LAN e la lettura di temperatura/
+CPU reali (§30) diventano più semplici.
+
+### 1. Hub API (systemd, sull'host)
 
 ```bash
-cd infra
+git clone <questo-repo> /opt/home-hub
+cd /opt/home-hub
+npm install
+npm run build -w apps/api
+
+cd apps/api
+cp .env.example .env   # imposta almeno HUB_DATA_ROOT assoluto, vedi commenti nel file
+pip install --user yt-dlp   # Download Manager, §12
+
+sudo useradd --system --home /opt/home-hub --shell /usr/sbin/nologin homehub
+sudo chown -R homehub:homehub /opt/home-hub
+
+sudo cp /opt/home-hub/infra/systemd/home-hub-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now home-hub-api
+```
+
+### 2. Web App, Jellyfin, Immich (Docker Compose)
+
+```bash
+cd /opt/home-hub/infra
 cp .env.example .env   # adatta HUB_WEB_PORT / HUB_CORS_ORIGINS se necessario
 docker compose up -d --build
 ```
@@ -146,16 +176,17 @@ docker compose up -d --build
 Dopo il primo avvio, completa il setup guidato di Jellyfin su
 `http://<host>:8096` e di Immich su `http://<host>:2283`, poi crea una
 API key in ciascuno (Jellyfin: Dashboard → API Keys; Immich: Account
-Settings → API Keys), impostale come `HUB_JELLYFIN_API_KEY` e
-`HUB_IMMICH_API_KEY` in `infra/.env` e riavvia con `docker compose up -d`
-perché l'Hub API possa mostrare Film/Serie/Foto.
+Settings → API Keys), impostale come `HUB_JELLYFIN_API_KEY`/
+`HUB_JELLYFIN_BASE_URL` e `HUB_IMMICH_API_KEY`/`HUB_IMMICH_BASE_URL` in
+`apps/api/.env` (non `infra/.env`: quelle variabili le legge l'Hub API
+sull'host) e riavvia con `sudo systemctl restart home-hub-api`.
 
-Questo avvia `api`, `web` (nginx, reverse proxy `/api` verso `api`),
-`jellyfin` e lo stack Immich (`immich-server` + `immich-redis` +
-`immich-db`; il container di machine learning è disabilitato di default,
-vedi commento nel compose — pesante per l'hardware iniziale). I dati
-vivono in `infra/data/` secondo la struttura descritta in
-`docs/SPEC_V1.md` §4:
+Il compose avvia `web` (nginx, reverse proxy `/api` verso l'Hub API
+sull'host tramite `host.docker.internal`), `jellyfin` e lo stack Immich
+(`immich-server` + `immich-redis` + `immich-db`; il container di machine
+learning è disabilitato di default, vedi commento nel compose — pesante
+per l'hardware iniziale). I dati vivono in `infra/data/` secondo la
+struttura descritta in `docs/SPEC_V1.md` §4:
 
 ```
 infra/data/
@@ -168,6 +199,16 @@ infra/data/
 ```
 
 `infra/data/` non è versionato (dati reali dell'utente).
+
+### Aggiornamenti
+
+```bash
+cd /opt/home-hub && git pull
+npm install && npm run build -w apps/api
+sudo systemctl restart home-hub-api
+
+cd infra && docker compose up -d --build
+```
 
 ## Principio di sviluppo
 
