@@ -7,6 +7,10 @@ import { healthRoutes } from "./routes/health.js";
 import { systemRoutes } from "./routes/system.js";
 import { profilesRoutes } from "./routes/profiles.js";
 import { authRoutes } from "./routes/auth.js";
+import { moviesRoutes } from "./routes/movies.js";
+import { seriesRoutes } from "./routes/series.js";
+import { mediaRoutes } from "./routes/media.js";
+import { playbackRoutes } from "./routes/playback.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -24,6 +28,10 @@ async function main() {
   await app.register(systemRoutes);
   await app.register(profilesRoutes);
   await app.register(authRoutes);
+  await app.register(moviesRoutes);
+  await app.register(seriesRoutes);
+  await app.register(mediaRoutes);
+  await app.register(playbackRoutes);
 
   await app.listen({ port: config.port, host: config.host });
 }

@@ -63,6 +63,74 @@ export interface SystemStatus {
   services: ServiceStatus[];
 }
 
+/** 1 secondo = 10.000.000 di tick (unità di misura usata da Jellyfin). */
+export const TICKS_PER_SECOND = 10_000_000;
+
+export interface MediaSummary {
+  id: string;
+  title: string;
+  year: number | null;
+  overview: string | null;
+  genres: string[];
+  communityRating: number | null;
+  runtimeTicks: number | null;
+}
+
+export interface MovieDetail extends MediaSummary {
+  mediaSourceId: string | null;
+}
+
+export interface ResumeInfo {
+  positionTicks: number;
+  durationTicks: number | null;
+}
+
+export interface SeasonSummary {
+  id: string;
+  name: string;
+  indexNumber: number | null;
+}
+
+export interface EpisodeSummary {
+  id: string;
+  title: string;
+  indexNumber: number | null;
+  seasonId: string | null;
+  overview: string | null;
+  runtimeTicks: number | null;
+}
+
+export interface EpisodeDetail extends EpisodeSummary {
+  seriesId: string | null;
+  seriesName: string | null;
+  mediaSourceId: string | null;
+}
+
+export interface ContinueWatchingItem {
+  itemId: string;
+  itemType: "movie" | "episode";
+  positionTicks: number;
+  durationTicks: number | null;
+  title: string | null;
+  metadataAvailable: boolean;
+}
+
+/**
+ * URL diretti verso i proxy binari dell'API (immagine/stream). Il token
+ * passa come query string perché <img>/<video src> non possono impostare
+ * header Authorization — stesso compromesso adottato da Jellyfin/Plex per
+ * i propri link di immagine/stream firmati.
+ */
+export function mediaImageUrl(itemId: string): string {
+  return `/api/media/${encodeURIComponent(itemId)}/image?token=${encodeURIComponent(getToken() ?? "")}`;
+}
+
+export function mediaStreamUrl(itemId: string, mediaSourceId?: string | null): string {
+  const params = new URLSearchParams({ token: getToken() ?? "" });
+  if (mediaSourceId) params.set("mediaSourceId", mediaSourceId);
+  return `/api/media/${encodeURIComponent(itemId)}/stream?${params.toString()}`;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -85,4 +153,31 @@ export const api = {
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
 
   systemStatus: () => request<SystemStatus>("/system/status"),
+
+  listMovies: () => request<{ movies: MediaSummary[] }>("/movies"),
+  getMovie: (id: string) =>
+    request<{ movie: MovieDetail; resume: ResumeInfo | null }>(`/movies/${encodeURIComponent(id)}`),
+
+  listSeries: () => request<{ series: MediaSummary[] }>("/series"),
+  getSeries: (id: string) =>
+    request<{ series: MediaSummary; seasons: SeasonSummary[] }>(`/series/${encodeURIComponent(id)}`),
+  listEpisodes: (seriesId: string, seasonId: string) =>
+    request<{ episodes: EpisodeSummary[] }>(
+      `/series/${encodeURIComponent(seriesId)}/seasons/${encodeURIComponent(seasonId)}/episodes`,
+    ),
+  getEpisode: (episodeId: string) =>
+    request<{ episode: EpisodeDetail; resume: ResumeInfo | null }>(
+      `/series/episodes/${encodeURIComponent(episodeId)}`,
+    ),
+
+  saveProgress: (
+    itemId: string,
+    body: { itemType: "movie" | "episode"; positionTicks: number; durationTicks: number | null },
+  ) =>
+    request<{ ok: true }>(`/playback/${encodeURIComponent(itemId)}/progress`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  continueWatching: () => request<{ items: ContinueWatchingItem[] }>("/continue-watching"),
 };

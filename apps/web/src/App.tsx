@@ -4,7 +4,10 @@ import { Layout } from "./components/Layout";
 import { ProfileSelect } from "./pages/ProfileSelect";
 import { Home } from "./pages/Home";
 import { Movies } from "./pages/Movies";
+import { MovieDetail } from "./pages/MovieDetail";
 import { Series } from "./pages/Series";
+import { SeriesDetail } from "./pages/SeriesDetail";
+import { EpisodeDetail } from "./pages/EpisodeDetail";
 import { Photos } from "./pages/Photos";
 import { Music } from "./pages/Music";
 import { Games } from "./pages/Games";
@@ -39,7 +42,10 @@ function Gate() {
       <Route element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="film" element={<Movies />} />
+        <Route path="film/:id" element={<MovieDetail />} />
         <Route path="serie" element={<Series />} />
+        <Route path="serie/:id" element={<SeriesDetail />} />
+        <Route path="serie/episodi/:episodeId" element={<EpisodeDetail />} />
         <Route path="foto" element={<Photos />} />
         <Route path="musica" element={<Music />} />
         <Route path="giochi" element={<Games />} />

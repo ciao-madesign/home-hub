@@ -10,6 +10,10 @@ declare module "fastify" {
 function extractToken(req: FastifyRequest): string | null {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) return header.slice("Bearer ".length);
+  // Fallback via query string: necessario per <img>/<video src> che non
+  // possono impostare un header Authorization (usato solo da /api/media/*).
+  const query = req.query as Record<string, unknown> | undefined;
+  if (typeof query?.token === "string") return query.token;
   return null;
 }
 

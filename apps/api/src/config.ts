@@ -25,8 +25,13 @@ export const config = {
 
   // Backend multimediali (opzionali in scaffold: se non raggiungibili, la
   // sezione resta visibile ma "non disponibile", come da §31)
-  jellyfinUrl: process.env.HUB_JELLYFIN_URL ?? null,
+  jellyfinUrl: process.env.HUB_JELLYFIN_URL ?? null, // usato solo per l'health probe in §30
   immichUrl: process.env.HUB_IMMICH_URL ?? null,
+
+  // Client Jellyfin (Fase 5 — Film/Serie, §7). L'API key si crea da
+  // Jellyfin: Dashboard → API Keys.
+  jellyfinBaseUrl: process.env.HUB_JELLYFIN_BASE_URL ?? null,
+  jellyfinApiKey: process.env.HUB_JELLYFIN_API_KEY ?? null,
 
   // Durata sessione (secondi) — §24: "sessione persistente, durata fissa breve"
   sessionTtlLocalSeconds: Number(env("HUB_SESSION_TTL_LOCAL", String(60 * 60 * 24 * 30))),

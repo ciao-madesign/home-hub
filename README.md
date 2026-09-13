@@ -26,9 +26,9 @@ home-hub/
 └── docs/        Specifiche di prodotto
 ```
 
-## Stato attuale (scaffold iniziale)
+## Stato attuale
 
-Implementato, corrispondente alle Fasi 3-4 della roadmap (§38 in
+Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
 `SPEC_V1.md`):
 
 - **Hub API**: server Fastify, database SQLite (`node:sqlite`) con
@@ -40,14 +40,25 @@ Implementato, corrispondente alle Fasi 3-4 della roadmap (§38 in
   Home dashboard con sezioni in ordine di priorità, pagina Sistema con
   metriche live, selezione profilo, dark theme, focus visibile per
   navigazione D-pad/TV, gestione stato offline.
-- Le sezioni Film/Serie/Foto/Musica/Giochi/File/Download sono presenti in
-  navigazione ma **non ancora integrate** (stub con riferimento alla fase
-  di roadmap in cui verranno implementate — Jellyfin è il prossimo passo,
-  Fase 5).
+- **Jellyfin (Film/Serie)**: integrato esclusivamente tramite l'Hub API
+  (il frontend non conosce Jellyfin — §2). Cataloghi Film/Serie, dettaglio
+  con stagioni/episodi, riproduzione Direct Play con supporto Range/seek,
+  salvataggio automatico del punto di visione e "Continua a guardare" in
+  Home (stato di riproduzione tenuto nel DB Hub, non in Jellyfin),
+  marcatura come guardato oltre il 90%, prompt di conferma "Prossimo
+  episodio". Se Jellyfin non è raggiungibile la sezione resta visibile con
+  un avviso invece di rompersi (§31) — comportamento verificato.
+- Foto/Musica/Giochi/File/Download restano stub (fasi successive).
 
-Non ancora implementato: integrazione Jellyfin/Immich, File Manager,
-Download Manager, Gaming, Backup, accesso remoto/DDNS/HTTPS, wizard di
-primo avvio. Vedi la roadmap completa in `docs/SPEC_V1.md` §38-39.
+**Limitazione nota**: l'integrazione Jellyfin è stata validata contro un
+server di test che replica le sue API REST (nessuna istanza Jellyfin reale
+era raggiungibile nell'ambiente di sviluppo). Da validare contro
+un'istanza Jellyfin vera prima di considerarla definitiva.
+
+Non ancora implementato: Immich, File Manager, Download Manager, Gaming,
+Backup, accesso remoto/DDNS/HTTPS, wizard di primo avvio, selezione
+traccia audio multipla. Vedi la roadmap completa in `docs/SPEC_V1.md`
+§38-39.
 
 ## Sviluppo locale
 
@@ -83,6 +94,11 @@ cd infra
 cp .env.example .env   # adatta HUB_WEB_PORT / HUB_CORS_ORIGINS se necessario
 docker compose up -d --build
 ```
+
+Dopo il primo avvio, completa il setup guidato di Jellyfin su
+`http://<host>:8096`, poi crea una API key da Dashboard → API Keys,
+impostala come `HUB_JELLYFIN_API_KEY` in `infra/.env` e riavvia con
+`docker compose up -d` perché l'Hub API possa mostrare Film/Serie.
 
 Questo avvia `api`, `web` (nginx, reverse proxy `/api` verso `api`) e
 `jellyfin`. I dati vivono in `infra/data/` secondo la struttura descritta
