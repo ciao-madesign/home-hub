@@ -15,6 +15,15 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+# yt-dlp (Download Manager, §12 — vedi docs/EXTERNAL_TOOLS.md) + ffmpeg,
+# richiesto da yt-dlp per unire tracce audio/video. python3/pip non hanno
+# un pacchetto yt-dlp affidabile su tutte le versioni di Alpine, quindi lo
+# installiamo via pip in un venv dedicato.
+RUN apk add --no-cache python3 py3-pip ffmpeg \
+    && python3 -m venv /opt/yt-dlp-venv \
+    && /opt/yt-dlp-venv/bin/pip install --no-cache-dir yt-dlp \
+    && ln -s /opt/yt-dlp-venv/bin/yt-dlp /usr/local/bin/yt-dlp
+
 COPY --from=builder /repo/apps/api/package.json ./package.json
 COPY --from=builder /repo/apps/api/dist ./dist
 COPY --from=builder /repo/node_modules ./node_modules

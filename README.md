@@ -61,24 +61,37 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   contenuto tra "Condivisi" e "Privati" è anche il modo per cambiarne la
   visibilità. Eliminazione definitiva sia dal cestino sia diretta
   (con conferma aggiuntiva).
-- Musica/Giochi/Download restano stub (fasi successive).
+- **Download Manager** (§12): coda unica per download "normali" (yt-dlp,
+  invocato come processo esterno con pausa/ripresa reali via
+  SIGSTOP/SIGCONT) e torrent (WebTorrent, libreria embedded nell'Hub API —
+  nessun servizio Docker separato). Pausa/ripresa reali anche per i
+  torrent (distruzione e riaggiunta del torrent, i byte già scaricati
+  restano su disco e non vengono riscaricati). Limite di banda globale
+  configurabile per dare priorità minima a streaming/backup (§32). Nessuno
+  storico permanente per i completati (rimossi dopo una breve finestra).
+  Vedi le decisioni in `docs/EXTERNAL_TOOLS.md`.
+- Musica/Giochi restano stub (fasi successive).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
 validate contro server di test che replicano le rispettive API REST
 (nessuna istanza reale era raggiungibile nell'ambiente di sviluppo — il
 registry Docker non era accessibile dalla policy di rete). Da validare
-contro istanze vere prima di considerarle definitive. Il File Manager,
-essendo codice proprietario, è stato invece validato direttamente contro
-un filesystem reale.
+contro istanze vere prima di considerarle definitive. File Manager e
+Download Manager, essendo codice proprietario (oltre a yt-dlp e WebTorrent,
+entrambi verificati direttamente), sono stati invece validati contro un
+filesystem reale e, per i torrent, un vero scambio peer-to-peer locale.
 
-Non ancora implementato: Download Manager, Gaming, Backup, accesso
-remoto/DDNS/HTTPS, wizard di primo avvio, selezione traccia audio
-multipla, ricerca globale full-text. Vedi la roadmap completa in
-`docs/SPEC_V1.md` §38-39.
+Non ancora implementato: Gaming, Backup, accesso remoto/DDNS/HTTPS,
+wizard di primo avvio, selezione traccia audio multipla, ricerca globale
+full-text, priorità dinamica dei download basata sull'attività di
+streaming in corso (attualmente un limite di banda statico). Vedi la
+roadmap completa in `docs/SPEC_V1.md` §38-39.
 
 ## Sviluppo locale
 
-Richiede Node.js ≥ 20.
+Richiede Node.js ≥ 20. Per il Download Manager (§12) serve anche `yt-dlp`
+nel PATH (`pip install yt-dlp`) — senza, i soli download da URL falliscono
+con un errore, il resto dell'Hub non è impattato (§31).
 
 ```bash
 npm install

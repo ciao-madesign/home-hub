@@ -224,6 +224,38 @@ async function uploadFiles(
   return body;
 }
 
+export type DownloadKind = "url" | "torrent";
+export type DownloadStatus = "queued" | "downloading" | "paused" | "completed" | "error";
+
+export interface DownloadItem {
+  id: string;
+  kind: DownloadKind;
+  source: string;
+  title: string | null;
+  status: DownloadStatus;
+  progressPercent: number;
+  totalBytes: number | null;
+  downloadedBytes: number | null;
+  speedBytesPerSec: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+async function uploadTorrentFile(file: File): Promise<{ download: DownloadItem }> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const token = getToken();
+  const res = await fetch("/api/downloads/upload-torrent", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const body = await res.json();
+  if (!res.ok) throw new ApiError(res.status, body);
+  return body;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -316,4 +348,23 @@ export const api = {
     request<{ results: FileSearchResult[] }>(
       `/files/search?scope=${scope}&q=${encodeURIComponent(q)}`,
     ),
+
+  listDownloads: () => request<{ downloads: DownloadItem[] }>("/downloads"),
+  addUrlDownload: (source: string) =>
+    request<{ download: DownloadItem }>("/downloads", {
+      method: "POST",
+      body: JSON.stringify({ kind: "url", source }),
+    }),
+  addTorrentDownload: (magnetUri: string) =>
+    request<{ download: DownloadItem }>("/downloads", {
+      method: "POST",
+      body: JSON.stringify({ kind: "torrent", source: magnetUri }),
+    }),
+  uploadTorrentFile,
+  pauseDownload: (id: string) =>
+    request<{ ok: true }>(`/downloads/${encodeURIComponent(id)}/pause`, { method: "POST" }),
+  resumeDownload: (id: string) =>
+    request<{ ok: true }>(`/downloads/${encodeURIComponent(id)}/resume`, { method: "POST" }),
+  cancelDownload: (id: string) =>
+    request<{ ok: true }>(`/downloads/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

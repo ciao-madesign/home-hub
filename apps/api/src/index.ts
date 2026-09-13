@@ -14,6 +14,7 @@ import { mediaRoutes } from "./routes/media.js";
 import { playbackRoutes } from "./routes/playback.js";
 import { photosRoutes } from "./routes/photos.js";
 import { filesRoutes } from "./routes/files.js";
+import { downloadsRoutes } from "./routes/downloads.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -40,6 +41,7 @@ async function main() {
   await app.register(playbackRoutes);
   await app.register(photosRoutes);
   await app.register(filesRoutes);
+  await app.register(downloadsRoutes);
 
   await app.listen({ port: config.port, host: config.host });
 }

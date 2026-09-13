@@ -35,3 +35,8 @@ export function formatDaysLeft(expiresAt: string): string {
   if (days <= 0) return "in scadenza";
   return days === 1 ? "1 giorno rimasto" : `${days} giorni rimasti`;
 }
+
+export function formatSpeed(bytesPerSec: number | null): string {
+  if (!bytesPerSec || bytesPerSec <= 0) return "—";
+  return `${formatBytes(bytesPerSec)}/s`;
+}

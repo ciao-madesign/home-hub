@@ -5,6 +5,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import { config } from "../config.js";
 import { getDb } from "../db/index.js";
+import { parseSqliteTimestamp } from "./sqliteDate.js";
 
 export type Scope = "shared" | "private";
 
@@ -212,8 +213,10 @@ export async function moveToTrash(scope: Scope, userId: string, relPath: string)
 export async function purgeExpiredTrash(userId: string): Promise<void> {
   const db = getDb();
   const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 86_400_000).toISOString();
+  // datetime(...) normalizza entrambi i lati: trashed_at è in formato
+  // SQLite, cutoff in ISO8601 — vedi lib/sqliteDate.ts per il motivo.
   const expired = db
-    .prepare(`SELECT * FROM trash_items WHERE user_id = ? AND trashed_at < ?`)
+    .prepare(`SELECT * FROM trash_items WHERE user_id = ? AND datetime(trashed_at) < datetime(?)`)
     .all(userId, cutoff) as unknown as TrashRow[];
 
   for (const item of expired) {
@@ -246,7 +249,7 @@ export async function listTrash(userId: string): Promise<TrashEntry[]> {
     isDirectory: r.is_directory === 1,
     trashedAt: r.trashed_at,
     expiresAt: new Date(
-      new Date(r.trashed_at).getTime() + TRASH_RETENTION_DAYS * 86_400_000,
+      parseSqliteTimestamp(r.trashed_at).getTime() + TRASH_RETENTION_DAYS * 86_400_000,
     ).toISOString(),
   }));
 }

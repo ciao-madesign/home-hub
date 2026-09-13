@@ -41,4 +41,12 @@ export const config = {
   // Durata sessione (secondi) — §24: "sessione persistente, durata fissa breve"
   sessionTtlLocalSeconds: Number(env("HUB_SESSION_TTL_LOCAL", String(60 * 60 * 24 * 30))),
   sessionTtlRemoteSeconds: Number(env("HUB_SESSION_TTL_REMOTE", String(60 * 60 * 12))),
+
+  // Download Manager (§12). yt-dlp per i download "normali" da URL (vedi
+  // docs/EXTERNAL_TOOLS.md), WebTorrent (libreria embedded) per i torrent.
+  ytdlpPath: env("HUB_YTDLP_PATH", "yt-dlp"),
+  downloadMaxConcurrent: Number(env("HUB_DOWNLOAD_MAX_CONCURRENT", "2")),
+  // Priorità minima rispetto a streaming/backup (§32): limite di banda
+  // globale sempre applicato. 0 = nessun limite.
+  downloadMaxRateKbps: Number(env("HUB_DOWNLOAD_MAX_RATE_KBPS", "8000")),
 };

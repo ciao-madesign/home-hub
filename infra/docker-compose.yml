@@ -19,6 +19,10 @@ services:
       HUB_IMMICH_BASE_URL: http://immich-server:2283
       # Da creare in Immich dopo il setup: Account Settings → API Keys.
       HUB_IMMICH_API_KEY: ${HUB_IMMICH_API_KEY:-}
+      # Download Manager (§12/§32) — priorità minima: limite di banda
+      # globale in KB/s, 0 = nessun limite.
+      HUB_DOWNLOAD_MAX_RATE_KBPS: ${HUB_DOWNLOAD_MAX_RATE_KBPS:-8000}
+      HUB_DOWNLOAD_MAX_CONCURRENT: ${HUB_DOWNLOAD_MAX_CONCURRENT:-2}
     volumes:
       - ./data:/data
     networks: [hub]
