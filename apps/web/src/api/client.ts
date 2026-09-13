@@ -256,6 +256,66 @@ async function uploadTorrentFile(file: File): Promise<{ download: DownloadItem }
   return body;
 }
 
+export type GameStatus = "installed" | "not_installed";
+export type MachineKind = "local" | "remote";
+
+export interface GameItem {
+  id: string;
+  title: string;
+  platform: string;
+  coverPath: string | null;
+  status: GameStatus;
+  executionMachineId: string | null;
+  hasSavePath: boolean;
+}
+
+export interface SaveBackup {
+  id: string;
+  backupPath: string;
+  createdAt: string;
+}
+
+export interface GameDetail {
+  game: GameItem;
+  saves: SaveBackup[];
+  running: boolean;
+}
+
+export interface ScanCandidate {
+  romPath: string;
+  suggestedTitle: string;
+  platform: string;
+}
+
+export interface MachineItem {
+  id: string;
+  name: string;
+  kind: MachineKind;
+  macAddress: string | null;
+  host: string | null;
+  port: number | null;
+  hasAgent: boolean;
+}
+
+export function gameCoverUrl(gameId: string): string {
+  return `/api/games/${encodeURIComponent(gameId)}/cover?token=${encodeURIComponent(getToken() ?? "")}`;
+}
+
+async function uploadGameCover(gameId: string, file: File): Promise<{ game: GameItem }> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const token = getToken();
+  const res = await fetch(`/api/games/${encodeURIComponent(gameId)}/cover`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const body = await res.json();
+  if (!res.ok) throw new ApiError(res.status, body);
+  return body;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -367,4 +427,51 @@ export const api = {
     request<{ ok: true }>(`/downloads/${encodeURIComponent(id)}/resume`, { method: "POST" }),
   cancelDownload: (id: string) =>
     request<{ ok: true }>(`/downloads/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  listGames: () => request<{ games: GameItem[] }>("/games"),
+  getGame: (id: string) => request<GameDetail>(`/games/${encodeURIComponent(id)}`),
+  createGame: (fields: {
+    title: string;
+    platform: string;
+    romPath?: string | null;
+    savePath?: string | null;
+    executionMachineId?: string | null;
+  }) => request<{ game: GameItem }>("/games", { method: "POST", body: JSON.stringify(fields) }),
+  updateGame: (
+    id: string,
+    fields: Partial<{
+      title: string;
+      platform: string;
+      romPath: string | null;
+      savePath: string | null;
+      executionMachineId: string | null;
+    }>,
+  ) =>
+    request<{ game: GameItem }>(`/games/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }),
+  deleteGame: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  scanGames: () => request<{ candidates: ScanCandidate[] }>("/games/scan"),
+  importGame: (candidate: ScanCandidate) =>
+    request<{ game: GameItem }>("/games/import", {
+      method: "POST",
+      body: JSON.stringify({ romPath: candidate.romPath, title: candidate.suggestedTitle, platform: candidate.platform }),
+    }),
+  uploadGameCover,
+  launchGame: (id: string) =>
+    request<{ mode: "local" | "remote"; started?: boolean; machineOnline?: boolean; wolSent?: boolean }>(
+      `/games/${encodeURIComponent(id)}/launch`,
+      { method: "POST" },
+    ),
+  stopGame: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}/stop`, { method: "POST" }),
+  backupGameSave: (id: string) =>
+    request<{ backup: SaveBackup }>(`/games/${encodeURIComponent(id)}/backup-save`, { method: "POST" }),
+
+  listMachines: () => request<{ machines: MachineItem[] }>("/machines"),
+  createMachine: (fields: { name: string; macAddress?: string | null; host?: string | null; port?: number | null; agentUrl?: string | null }) =>
+    request<{ machine: MachineItem }>("/machines", { method: "POST", body: JSON.stringify(fields) }),
+  deleteMachine: (id: string) => request<{ ok: true }>(`/machines/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  wakeMachine: (id: string) => request<{ ok: true }>(`/machines/${encodeURIComponent(id)}/wake`, { method: "POST" }),
+  getMachineStatus: (id: string) => request<{ online: boolean }>(`/machines/${encodeURIComponent(id)}/status`),
 };

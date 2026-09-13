@@ -6,8 +6,9 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo Fase 6 (File Manager + Download Manager),
-prima di iniziare Fase 7 (Gaming).
+Ultimo aggiornamento: dopo Fase 7 (Gaming, parte 1 — catalogo,
+importazione, esecuzione locale, macchine remote), prima di Fase 8
+(Storage e Backup).
 
 ---
 
@@ -66,7 +67,25 @@ BitTorrent peer-to-peer locale.
 ancora affrontata, fa parte concettualmente della Fase 8.
 
 ### Fase 7 — Gaming
-⬜ Non iniziata. Prossimo passo.
+🟡 Fatto: catalogo giochi (titolo, piattaforma, copertina, stato),
+importazione da cartelle monitorate con conferma (§13), esecuzione locale
+di emulatori retro (spawn del processo, un'esecuzione alla volta per
+gioco, stop), gestione macchine (locale + PC remoti), Wake-on-LAN
+(pacchetto magico verificato byte per byte), probe di stato online/
+offline, backup centralizzato dei salvataggi. "L'Hub seleziona
+automaticamente la macchina" è implementato in modo semplice: usa la
+macchina assegnata al gioco (default locale), l'utente la cambia da un
+menu — non c'è ancora un'euristica di selezione automatica basata su
+compatibilità.
+⬜ Non fatto: avvio effettivo di una sessione Sunshine/Moonlight (solo
+Wake-on-LAN + verifica stato — vedi proposte aperte, §3), spegnimento
+remoto sicuro (implementato ma richiede un agente HTTP sul PC remoto non
+ancora specificato/fornito), controller Bluetooth/USB (nessuna
+integrazione: è un livello OS/browser, non un backend da orchestrare),
+supporto formati emulatore oltre alla mappa piattaforma→emulatore di
+default (RetroArch, non verificata contro un'installazione reale).
+**Vedi la nota architetturale in §3** su dove devono girare fisicamente
+gli emulatori (host vs container Docker) prima di questo deploy.
 
 ### Fase 8 — Storage e Backup
 ⬜ Non iniziata. Il monitoraggio storage di base (spazio libero, soglia
@@ -137,6 +156,18 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   dall'Appendice della spec V1, la tabella `users` non ha un vincolo
   rigido a 2 record e `devices` è una tabella separata — pronta per N
   utenti futuri senza modifiche strutturali.
+- **Gaming — privacy dei PC remoti (§26)**: l'Hub non memorizza
+  credenziali (password/chiavi SSH) dei PC remoti. Wake-on-LAN non ne
+  richiede (broadcast UDP). Per lo spegnimento remoto sicuro, che
+  invece un'autorizzazione la richiede, la macchina remota espone un
+  proprio "agente" HTTP locale (URL configurabile, `agent_url`) che
+  gestisce la propria autorizzazione — l'Hub si limita a chiamarlo, non
+  gestisce credenziali di terzi.
+- **Gaming — backup salvataggi senza conoscere gli emulatori**: invece
+  di integrare la logica di ogni emulatore, l'Hub copia semplicemente
+  un percorso file/cartella configurato manualmente per ogni gioco
+  (`save_path`) in `Games/.saves/<gameId>/<timestamp>/` — funziona con
+  qualsiasi emulatore, a costo di dover impostare il percorso a mano.
 
 ## 3. Proposte aperte / da decidere con l'utente
 
@@ -163,6 +194,39 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
   "Continua a guardare" già gestito lato Hub), andrebbe creato un account
   Jellyfin/Immich per ogni utente Hub alla creazione del profilo.
+- **⚠️ Gaming — dove devono girare fisicamente gli emulatori: questione
+  architetturale da chiarire prima del deploy.** L'Hub API lancia
+  l'emulatore come processo figlio (`child_process.spawn`) del proprio
+  processo Node. Se l'Hub API gira in un container Docker (come
+  `api` in `infra/docker-compose.yml`, coerente con Jellyfin/Immich/
+  Download Manager), l'emulatore girerebbe *dentro* quel container —
+  che normalmente non ha accesso al display fisico del Wyse (serve
+  passthrough X11/Wayland + `/dev/dri`, configurazione non banale e
+  fragile per un'app grafica interattiva con input da controller).
+  La spec stessa suggerisce che Moonlight (per il Remote Gaming) gira
+  "sul Wyse" come app di sistema, non containerizzata — probabilmente lo
+  stesso deve valere per gli emulatori retro. Due strade possibili, da
+  decidere con l'utente:
+  1. L'Hub API (o solo il modulo Gaming) gira **sull'host**, non in
+     Docker, con accesso diretto al display.
+  2. L'Hub API resta in Docker e delega l'avvio effettivo a un piccolo
+     **agente locale sull'host** (stesso pattern già usato per lo
+     spegnimento remoto sicuro dei PC gaming), richiamato via HTTP/socket
+     locale.
+  Il codice attuale (`lib/gaming/emulator.ts`) assume implicitamente
+  l'opzione 1 (spawn diretto) — funziona, ma solo se il processo che lo
+  esegue ha davvero accesso al display. Non affrontato ora perché
+  dipende da una decisione di deployment, non di feature.
+- **Selezione automatica della macchina di esecuzione**: oggi "l'Hub
+  seleziona automaticamente" è in realtà "usa la macchina assegnata al
+  gioco, di default quella locale" — non c'è ancora un'euristica che
+  guardi la piattaforma del gioco e la disponibilità delle macchine per
+  scegliere automaticamente.
+- **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
+  di gioco su PC remoto oggi si ferma a Wake-on-LAN + verifica stato.
+  Avviare davvero un'app/gioco via Sunshine richiede implementare il suo
+  flusso di pairing (PIN + certificati TLS client) — scope non banale,
+  volutamente rimandato.
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 
@@ -174,3 +238,12 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
 - Vulnerabilità nota accettata in una dipendenza transitiva di
   WebTorrent (SSRF advisory in `ip` via `bittorrent-tracker`) — dettagli
   in `docs/EXTERNAL_TOOLS.md`.
+- Mappa piattaforma→emulatore (`lib/gaming/emulator.ts`) non verificata
+  contro un'installazione RetroArch reale (nessun emulatore disponibile
+  in questo ambiente) — meccanismo di avvio/stop del processo verificato
+  con un comando di test innocuo, i percorsi dei core libretro di
+  default sono valori plausibili non testati. Wake-on-LAN verificato
+  byte per byte sul formato del pacchetto e sull'invio broadcast, non
+  contro un PC reale che si accende davvero (nessun target disponibile
+  in questo ambiente). Vedi anche la nota architetturale al punto
+  precedente su dove devono girare fisicamente gli emulatori.

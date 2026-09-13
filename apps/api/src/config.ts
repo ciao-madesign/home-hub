@@ -49,4 +49,10 @@ export const config = {
   // Priorità minima rispetto a streaming/backup (§32): limite di banda
   // globale sempre applicato. 0 = nessun limite.
   downloadMaxRateKbps: Number(env("HUB_DOWNLOAD_MAX_RATE_KBPS", "8000")),
+
+  // Gaming (§10). Timeout del probe di stato di un PC remoto (ms) e
+  // mappa piattaforma → comando emulatore, sovrascrivibile per adattarla
+  // agli emulatori realmente installati sull'hardware di destinazione.
+  machineProbeTimeoutMs: Number(env("HUB_MACHINE_PROBE_TIMEOUT_MS", "2000")),
+  emulatorMapJson: process.env.HUB_EMULATOR_MAP_JSON ?? null,
 };

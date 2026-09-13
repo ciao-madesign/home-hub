@@ -6,6 +6,7 @@ import { pipeline } from "node:stream/promises";
 import { config } from "../config.js";
 import { getDb } from "../db/index.js";
 import { parseSqliteTimestamp } from "./sqliteDate.js";
+import { assertSafeRelativePath, UnsafePathError } from "./pathSafety.js";
 
 export type Scope = "shared" | "private";
 
@@ -38,17 +39,13 @@ function scopeRoot(scope: Scope, userId: string): string {
   return scope === "shared" ? sharedRoot() : privateRoot(userId);
 }
 
-/** Rifiuta segmenti "." o ".." per impedire di uscire dalla root dello scope. */
-function assertSafeSegments(relPath: string): string[] {
-  const segments = relPath.split("/").filter((s) => s.length > 0);
-  for (const seg of segments) {
-    if (seg === "." || seg === "..") throw new FilesError("Percorso non valido");
-  }
-  return segments;
-}
-
 function resolveInRoot(root: string, relPath: string): string {
-  return path.join(root, ...assertSafeSegments(relPath));
+  try {
+    return path.join(root, ...assertSafeRelativePath(relPath));
+  } catch (err) {
+    if (err instanceof UnsafePathError) throw new FilesError("Percorso non valido");
+    throw err;
+  }
 }
 
 async function ensureDir(dir: string): Promise<void> {

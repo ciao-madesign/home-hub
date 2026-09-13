@@ -74,22 +74,37 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   configurabile per dare priorità minima a streaming/backup (§32). Nessuno
   storico permanente per i completati (rimossi dopo una breve finestra).
   Vedi le decisioni in `docs/EXTERNAL_TOOLS.md`.
-- Musica/Giochi restano stub (fasi successive).
+- **Gaming** (§10): catalogo (titolo, piattaforma, copertina), importazione
+  da cartelle monitorate con conferma, esecuzione locale di emulatori
+  retro (avvio/stop di processo), gestione macchine (locale + PC remoti),
+  Wake-on-LAN (pacchetto magico verificato byte per byte), probe di stato
+  online/offline, backup centralizzato dei salvataggi. **Non
+  implementato**: avvio effettivo di sessioni Sunshine/Moonlight (solo
+  risveglio + verifica stato), controller Bluetooth/USB. **Questione
+  architetturale aperta**: gli emulatori vengono lanciati come processo
+  figlio dell'Hub API — se l'Hub gira in Docker (come nel compose fornito)
+  serve decidere se farli girare sull'host o tramite un agente locale
+  dedicato, dato che serve accesso al display fisico. Vedi
+  `docs/SPECIFICHE.md` §3.
+- Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
 validate contro server di test che replicano le rispettive API REST
 (nessuna istanza reale era raggiungibile nell'ambiente di sviluppo — il
 registry Docker non era accessibile dalla policy di rete). Da validare
-contro istanze vere prima di considerarle definitive. File Manager e
-Download Manager, essendo codice proprietario (oltre a yt-dlp e WebTorrent,
-entrambi verificati direttamente), sono stati invece validati contro un
-filesystem reale e, per i torrent, un vero scambio peer-to-peer locale.
+contro istanze vere prima di considerarle definitive. File Manager,
+Download Manager e Gaming, essendo codice proprietario (oltre a yt-dlp e
+WebTorrent, entrambi verificati direttamente), sono stati invece validati
+contro un filesystem reale e, per i torrent, un vero scambio peer-to-peer
+locale. Wake-on-LAN verificato sul formato del pacchetto, non contro un
+PC reale (nessun target disponibile in questo ambiente).
 
-Non ancora implementato: Gaming, Backup, accesso remoto/DDNS/HTTPS,
-wizard di primo avvio, selezione traccia audio multipla, ricerca globale
+Non ancora implementato: Backup, accesso remoto/DDNS/HTTPS, wizard di
+primo avvio, selezione traccia audio multipla, ricerca globale
 full-text, priorità dinamica dei download basata sull'attività di
-streaming in corso (attualmente un limite di banda statico). Vedi la
-roadmap completa in `docs/SPEC_V1.md` §38-39.
+streaming in corso (attualmente un limite di banda statico), avvio
+sessioni Sunshine/Moonlight. Vedi la roadmap completa e la checklist
+dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 

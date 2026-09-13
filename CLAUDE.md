@@ -63,9 +63,9 @@ Dispositivo utente → React Web App → Hub API / Orchestrator → Backend inte
   anche come query string `?token=` — vedi `plugins/auth.ts:extractToken`.
   Stesso compromesso usato da Jellyfin/Plex per i loro link firmati.
 - **Path safety filesystem**: qualunque endpoint che accetta un percorso
-  relativo da utente (File Manager) deve rifiutare segmenti `.`/`..`
-  esplicitamente (non fare solo `path.normalize` e sperare) — vedi
-  `lib/files.ts:assertSafeSegments`.
+  relativo da utente (File Manager, Gaming) deve rifiutare segmenti
+  `.`/`..` esplicitamente (non fare solo `path.normalize` e sperare) —
+  usa `lib/pathSafety.ts:assertSafeRelativePath`, condivisa tra i moduli.
 - **Timestamp SQLite vs JS — attenzione**: `datetime('now')` di SQLite
   produce `"YYYY-MM-DD HH:MM:SS"` (UTC, senza `T`/`Z`). Confrontarlo in SQL
   con una stringa ISO8601 generata da `new Date().toISOString()` come
