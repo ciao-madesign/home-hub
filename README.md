@@ -54,16 +54,25 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
 - Se Jellyfin o Immich non sono raggiungibili, la relativa sezione resta
   visibile con un avviso invece di rompersi (§31) — comportamento
   verificato per entrambi.
-- Musica/Giochi/File/Download restano stub (fasi successive).
+- **File Manager** (§11): proprietario, opera sul filesystem sotto
+  `Files/{shared,private/<userId>}`. Cartelle, upload/download, rinomina,
+  ricerca per nome, rilevamento duplicati (per hash, nessuna eliminazione
+  automatica), cestino con scadenza 7 giorni e ripristino. Spostare un
+  contenuto tra "Condivisi" e "Privati" è anche il modo per cambiarne la
+  visibilità. Eliminazione definitiva sia dal cestino sia diretta
+  (con conferma aggiuntiva).
+- Musica/Giochi/Download restano stub (fasi successive).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
 validate contro server di test che replicano le rispettive API REST
 (nessuna istanza reale era raggiungibile nell'ambiente di sviluppo — il
 registry Docker non era accessibile dalla policy di rete). Da validare
-contro istanze vere prima di considerarle definitive.
+contro istanze vere prima di considerarle definitive. Il File Manager,
+essendo codice proprietario, è stato invece validato direttamente contro
+un filesystem reale.
 
-Non ancora implementato: File Manager, Download Manager, Gaming, Backup,
-accesso remoto/DDNS/HTTPS, wizard di primo avvio, selezione traccia audio
+Non ancora implementato: Download Manager, Gaming, Backup, accesso
+remoto/DDNS/HTTPS, wizard di primo avvio, selezione traccia audio
 multipla, ricerca globale full-text. Vedi la roadmap completa in
 `docs/SPEC_V1.md` §38-39.
 

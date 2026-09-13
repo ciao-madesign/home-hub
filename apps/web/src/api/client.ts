@@ -21,7 +21,8 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   const headers = new Headers(init?.headers);
-  headers.set("Content-Type", "application/json");
+  // Solo se c'è un body: Fastify rifiuta un body vuoto con Content-Type json.
+  if (init?.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`/api${path}`, { ...init, headers });
@@ -164,6 +165,65 @@ export function photoOriginalUrl(assetId: string): string {
   return `/api/photos/assets/${encodeURIComponent(assetId)}/original?token=${encodeURIComponent(getToken() ?? "")}`;
 }
 
+export type FileScope = "shared" | "private";
+
+export interface FileEntry {
+  name: string;
+  isDirectory: boolean;
+  size: number | null;
+  modifiedAt: string;
+}
+
+export interface TrashEntry {
+  id: string;
+  scope: FileScope;
+  originalPath: string;
+  name: string;
+  isDirectory: boolean;
+  trashedAt: string;
+  expiresAt: string;
+}
+
+export interface DuplicateGroup {
+  hash: string;
+  size: number;
+  files: { path: string; modifiedAt: string }[];
+}
+
+export interface FileSearchResult {
+  path: string;
+  name: string;
+  isDirectory: boolean;
+  size: number | null;
+  modifiedAt: string;
+}
+
+export function fileDownloadUrl(scope: FileScope, filePath: string): string {
+  const params = new URLSearchParams({ scope, path: filePath, token: getToken() ?? "" });
+  return `/api/files/download?${params.toString()}`;
+}
+
+async function uploadFiles(
+  scope: FileScope,
+  path: string,
+  files: FileList | File[],
+): Promise<{ ok: true; uploaded: number }> {
+  const form = new FormData();
+  form.set("scope", scope);
+  form.set("path", path);
+  for (const file of Array.from(files)) form.append("file", file);
+
+  const token = getToken();
+  const res = await fetch("/api/files/upload", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const body = await res.json();
+  if (!res.ok) throw new ApiError(res.status, body);
+  return body;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -219,4 +279,41 @@ export const api = {
   listAlbums: () => request<{ albums: AlbumSummary[] }>("/photos/albums"),
   getAlbum: (id: string) =>
     request<{ album: AlbumDetail }>(`/photos/albums/${encodeURIComponent(id)}`),
+
+  listFiles: (scope: FileScope, path: string) =>
+    request<{ entries: FileEntry[] }>(
+      `/files?scope=${scope}&path=${encodeURIComponent(path)}`,
+    ),
+  createFolder: (scope: FileScope, path: string, name: string) =>
+    request<{ ok: true }>("/files/folders", {
+      method: "POST",
+      body: JSON.stringify({ scope, path, name }),
+    }),
+  renameFile: (scope: FileScope, path: string, newName: string) =>
+    request<{ ok: true }>("/files/rename", {
+      method: "POST",
+      body: JSON.stringify({ scope, path, newName }),
+    }),
+  moveFile: (scope: FileScope, path: string, destScope: FileScope, destPath: string) =>
+    request<{ ok: true }>("/files/move", {
+      method: "POST",
+      body: JSON.stringify({ scope, path, destScope, destPath }),
+    }),
+  deleteFile: (scope: FileScope, path: string, permanent = false) =>
+    request<{ ok: true }>("/files", {
+      method: "DELETE",
+      body: JSON.stringify({ scope, path, permanent }),
+    }),
+  uploadFiles,
+  listTrash: () => request<{ items: TrashEntry[] }>("/files/trash"),
+  restoreTrash: (id: string) =>
+    request<{ ok: true }>(`/files/trash/${encodeURIComponent(id)}/restore`, { method: "POST" }),
+  deleteTrashPermanent: (id: string) =>
+    request<{ ok: true }>(`/files/trash/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  findDuplicateFiles: (scope: FileScope) =>
+    request<{ groups: DuplicateGroup[] }>(`/files/duplicates?scope=${scope}`),
+  searchFiles: (scope: FileScope, q: string) =>
+    request<{ results: FileSearchResult[] }>(
+      `/files/search?scope=${scope}&q=${encodeURIComponent(q)}`,
+    ),
 };

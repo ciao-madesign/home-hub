@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import { config } from "./config.js";
 import { getDb } from "./db/index.js";
 import { attachAuth } from "./plugins/auth.js";
@@ -12,6 +13,7 @@ import { seriesRoutes } from "./routes/series.js";
 import { mediaRoutes } from "./routes/media.js";
 import { playbackRoutes } from "./routes/playback.js";
 import { photosRoutes } from "./routes/photos.js";
+import { filesRoutes } from "./routes/files.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -21,6 +23,9 @@ async function main() {
 
   await app.register(cors, {
     origin: config.corsOrigins,
+  });
+  await app.register(multipart, {
+    limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10 GB, coerente con file multimediali di grandi dimensioni
   });
 
   app.addHook("onRequest", attachAuth);
@@ -34,6 +39,7 @@ async function main() {
   await app.register(mediaRoutes);
   await app.register(playbackRoutes);
   await app.register(photosRoutes);
+  await app.register(filesRoutes);
 
   await app.listen({ port: config.port, host: config.host });
 }
