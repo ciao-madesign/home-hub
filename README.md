@@ -46,19 +46,26 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   salvataggio automatico del punto di visione e "Continua a guardare" in
   Home (stato di riproduzione tenuto nel DB Hub, non in Jellyfin),
   marcatura come guardato oltre il 90%, prompt di conferma "Prossimo
-  episodio". Se Jellyfin non è raggiungibile la sezione resta visibile con
-  un avviso invece di rompersi (§31) — comportamento verificato.
-- Foto/Musica/Giochi/File/Download restano stub (fasi successive).
+  episodio".
+- **Immich (Foto/Video personali)**: stesso pattern di isolamento.
+  Timeline con filtro "solo video", album, visualizzazione full screen
+  (lightbox con navigazione prev/next e riproduzione video), slideshow a
+  intervallo configurabile (3/5/10s).
+- Se Jellyfin o Immich non sono raggiungibili, la relativa sezione resta
+  visibile con un avviso invece di rompersi (§31) — comportamento
+  verificato per entrambi.
+- Musica/Giochi/File/Download restano stub (fasi successive).
 
-**Limitazione nota**: l'integrazione Jellyfin è stata validata contro un
-server di test che replica le sue API REST (nessuna istanza Jellyfin reale
-era raggiungibile nell'ambiente di sviluppo). Da validare contro
-un'istanza Jellyfin vera prima di considerarla definitiva.
+**Limitazione nota**: le integrazioni Jellyfin e Immich sono state
+validate contro server di test che replicano le rispettive API REST
+(nessuna istanza reale era raggiungibile nell'ambiente di sviluppo — il
+registry Docker non era accessibile dalla policy di rete). Da validare
+contro istanze vere prima di considerarle definitive.
 
-Non ancora implementato: Immich, File Manager, Download Manager, Gaming,
-Backup, accesso remoto/DDNS/HTTPS, wizard di primo avvio, selezione
-traccia audio multipla. Vedi la roadmap completa in `docs/SPEC_V1.md`
-§38-39.
+Non ancora implementato: File Manager, Download Manager, Gaming, Backup,
+accesso remoto/DDNS/HTTPS, wizard di primo avvio, selezione traccia audio
+multipla, ricerca globale full-text. Vedi la roadmap completa in
+`docs/SPEC_V1.md` §38-39.
 
 ## Sviluppo locale
 
@@ -96,13 +103,18 @@ docker compose up -d --build
 ```
 
 Dopo il primo avvio, completa il setup guidato di Jellyfin su
-`http://<host>:8096`, poi crea una API key da Dashboard → API Keys,
-impostala come `HUB_JELLYFIN_API_KEY` in `infra/.env` e riavvia con
-`docker compose up -d` perché l'Hub API possa mostrare Film/Serie.
+`http://<host>:8096` e di Immich su `http://<host>:2283`, poi crea una
+API key in ciascuno (Jellyfin: Dashboard → API Keys; Immich: Account
+Settings → API Keys), impostale come `HUB_JELLYFIN_API_KEY` e
+`HUB_IMMICH_API_KEY` in `infra/.env` e riavvia con `docker compose up -d`
+perché l'Hub API possa mostrare Film/Serie/Foto.
 
-Questo avvia `api`, `web` (nginx, reverse proxy `/api` verso `api`) e
-`jellyfin`. I dati vivono in `infra/data/` secondo la struttura descritta
-in `docs/SPEC_V1.md` §4:
+Questo avvia `api`, `web` (nginx, reverse proxy `/api` verso `api`),
+`jellyfin` e lo stack Immich (`immich-server` + `immich-redis` +
+`immich-db`; il container di machine learning è disabilitato di default,
+vedi commento nel compose — pesante per l'hardware iniziale). I dati
+vivono in `infra/data/` secondo la struttura descritta in
+`docs/SPEC_V1.md` §4:
 
 ```
 infra/data/

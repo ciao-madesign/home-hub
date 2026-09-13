@@ -33,6 +33,11 @@ export const config = {
   jellyfinBaseUrl: process.env.HUB_JELLYFIN_BASE_URL ?? null,
   jellyfinApiKey: process.env.HUB_JELLYFIN_API_KEY ?? null,
 
+  // Client Immich (Fase 5 — Foto/Video personali, §8). L'API key si crea
+  // da Immich: Account Settings → API Keys.
+  immichBaseUrl: process.env.HUB_IMMICH_BASE_URL ?? null,
+  immichApiKey: process.env.HUB_IMMICH_API_KEY ?? null,
+
   // Durata sessione (secondi) — §24: "sessione persistente, durata fissa breve"
   sessionTtlLocalSeconds: Number(env("HUB_SESSION_TTL_LOCAL", String(60 * 60 * 24 * 30))),
   sessionTtlRemoteSeconds: Number(env("HUB_SESSION_TTL_REMOTE", String(60 * 60 * 12))),

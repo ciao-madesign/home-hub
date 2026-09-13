@@ -15,6 +15,10 @@ services:
       HUB_JELLYFIN_BASE_URL: http://jellyfin:8096
       # Da creare in Jellyfin dopo il setup: Dashboard → API Keys.
       HUB_JELLYFIN_API_KEY: ${HUB_JELLYFIN_API_KEY:-}
+      HUB_IMMICH_URL: http://immich-server:2283/api/server/ping
+      HUB_IMMICH_BASE_URL: http://immich-server:2283
+      # Da creare in Immich dopo il setup: Account Settings → API Keys.
+      HUB_IMMICH_API_KEY: ${HUB_IMMICH_API_KEY:-}
     volumes:
       - ./data:/data
     networks: [hub]
@@ -30,8 +34,7 @@ services:
       - api
     networks: [hub]
 
-  # Backend Film/Serie (§7). Foto/Video personali (Immich, §8) verranno
-  # aggiunti in Fase 5 successiva, come da docs/SPEC_V1.md §39.
+  # Backend Film/Serie (§7).
   jellyfin:
     image: jellyfin/jellyfin:latest
     restart: unless-stopped
@@ -47,6 +50,53 @@ services:
     # (Intel J4105 del Dell Wyse 5070). Rimuovere se non disponibile.
     devices:
       - /dev/dri:/dev/dri
+    networks: [hub]
+
+  # Backend Foto/Video personali (§8). Richiede Postgres + Redis, a
+  # differenza di Jellyfin che è self-contained.
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    restart: unless-stopped
+    ports:
+      - "2283:2283"
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: immich
+      DB_PASSWORD: ${HUB_IMMICH_DB_PASSWORD:-immich}
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: immich-redis
+    volumes:
+      - ./data/Photos:/usr/src/app/upload
+    depends_on:
+      - immich-db
+      - immich-redis
+    networks: [hub]
+
+  # Rilevamento volti/oggetti: disabilitato di default — pesante per
+  # l'hardware iniziale (Intel J4105, 8 GB RAM, §3). Va abilitato solo su
+  # hardware più potente, impostando anche IMMICH_MACHINE_LEARNING_URL
+  # sul servizio immich-server.
+  # immich-machine-learning:
+  #   image: ghcr.io/immich-app/immich-machine-learning:release
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./data/immich/model-cache:/cache
+  #   networks: [hub]
+
+  immich-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [hub]
+
+  immich-db:
+    image: tensorchord/pgvecto-rs:pg14-v0.2.0
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: immich
+      POSTGRES_PASSWORD: ${HUB_IMMICH_DB_PASSWORD:-immich}
+      POSTGRES_DB: immich
+    volumes:
+      - ./data/immich/db:/var/lib/postgresql/data
     networks: [hub]
 
 networks:

@@ -131,6 +131,39 @@ export function mediaStreamUrl(itemId: string, mediaSourceId?: string | null): s
   return `/api/media/${encodeURIComponent(itemId)}/stream?${params.toString()}`;
 }
 
+export interface PhotoAsset {
+  id: string;
+  type: "image" | "video";
+  fileName: string;
+  takenAt: string;
+}
+
+export interface TimelinePage {
+  items: PhotoAsset[];
+  total: number;
+  nextPage: string | null;
+}
+
+export interface AlbumSummary {
+  id: string;
+  name: string;
+  assetCount: number;
+  thumbnailAssetId: string | null;
+}
+
+export interface AlbumDetail extends AlbumSummary {
+  description: string | null;
+  assets: PhotoAsset[];
+}
+
+export function photoThumbnailUrl(assetId: string): string {
+  return `/api/photos/assets/${encodeURIComponent(assetId)}/thumbnail?token=${encodeURIComponent(getToken() ?? "")}`;
+}
+
+export function photoOriginalUrl(assetId: string): string {
+  return `/api/photos/assets/${encodeURIComponent(assetId)}/original?token=${encodeURIComponent(getToken() ?? "")}`;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -180,4 +213,10 @@ export const api = {
     }),
 
   continueWatching: () => request<{ items: ContinueWatchingItem[] }>("/continue-watching"),
+
+  photoTimeline: (page: number, type: "all" | "image" | "video") =>
+    request<TimelinePage>(`/photos/timeline?page=${page}&type=${type}`),
+  listAlbums: () => request<{ albums: AlbumSummary[] }>("/photos/albums"),
+  getAlbum: (id: string) =>
+    request<{ album: AlbumDetail }>(`/photos/albums/${encodeURIComponent(id)}`),
 };
