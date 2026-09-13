@@ -1,0 +1,115 @@
+# Home Entertainment Hub
+
+Home Entertainment Hub personale per Dell Wyse 5070: un'unica Web App
+proprietaria (React) che aggrega Film, Serie, Foto, Musica, Giochi, File,
+Download, Backup e gestione del sistema, parlando esclusivamente con
+un'API centrale (Hub Orchestrator) e mai direttamente con i backend interni
+(Jellyfin, Immich, filesystem, database).
+
+Le specifiche complete sono in [`docs/SPEC_V1.md`](docs/SPEC_V1.md) e
+[`docs/SPEC_V2.md`](docs/SPEC_V2.md); le decisioni su strumenti esterni in
+[`docs/EXTERNAL_TOOLS.md`](docs/EXTERNAL_TOOLS.md).
+
+```
+Dispositivo utente → React Web App → Hub API / Orchestrator → Backend interni → SSD / dischi dati
+```
+
+## Struttura repository
+
+```
+home-hub/
+├── apps/
+│   ├── api/     Hub API (Fastify + TypeScript + SQLite, node:sqlite)
+│   └── web/     Web App (React + Vite + TypeScript)
+├── infra/
+│   └── docker-compose.yml   Orchestrazione servizi (api, web, jellyfin, …)
+└── docs/        Specifiche di prodotto
+```
+
+## Stato attuale (scaffold iniziale)
+
+Implementato, corrispondente alle Fasi 3-4 della roadmap (§38 in
+`SPEC_V1.md`):
+
+- **Hub API**: server Fastify, database SQLite (`node:sqlite`) con
+  migrazioni, selezione profilo su LAN senza password, login remoto
+  username/password, sessioni con token, health check, stato sistema
+  (CPU/RAM/temperatura/storage/servizi) con indicatore
+  NORMAL/ATTENTION/PROBLEM.
+- **Web App**: layout con sidebar collassabile, ricerca globale (UI),
+  Home dashboard con sezioni in ordine di priorità, pagina Sistema con
+  metriche live, selezione profilo, dark theme, focus visibile per
+  navigazione D-pad/TV, gestione stato offline.
+- Le sezioni Film/Serie/Foto/Musica/Giochi/File/Download sono presenti in
+  navigazione ma **non ancora integrate** (stub con riferimento alla fase
+  di roadmap in cui verranno implementate — Jellyfin è il prossimo passo,
+  Fase 5).
+
+Non ancora implementato: integrazione Jellyfin/Immich, File Manager,
+Download Manager, Gaming, Backup, accesso remoto/DDNS/HTTPS, wizard di
+primo avvio. Vedi la roadmap completa in `docs/SPEC_V1.md` §38-39.
+
+## Sviluppo locale
+
+Richiede Node.js ≥ 20.
+
+```bash
+npm install
+
+# Terminale 1 — Hub API su http://localhost:4000
+npm run dev:api
+
+# Terminale 2 — Web App su http://localhost:5173 (proxy /api → :4000)
+npm run dev:web
+```
+
+Al primo avvio l'API crea `apps/api/data/hub.sqlite` con due profili di
+esempio (`Owner`/admin e `Utente`), sufficienti per usare la selezione
+profilo. Il wizard di primo avvio guidato (§28) sostituirà questo seed.
+
+Variabili d'ambiente disponibili in `apps/api/.env.example`.
+
+### Verifica tipi e build
+
+```bash
+npm run typecheck
+npm run build
+```
+
+## Deploy (Docker Compose)
+
+```bash
+cd infra
+cp .env.example .env   # adatta HUB_WEB_PORT / HUB_CORS_ORIGINS se necessario
+docker compose up -d --build
+```
+
+Questo avvia `api`, `web` (nginx, reverse proxy `/api` verso `api`) e
+`jellyfin`. I dati vivono in `infra/data/` secondo la struttura descritta
+in `docs/SPEC_V1.md` §4:
+
+```
+infra/data/
+├── Media/{Movies,Series,Music}/
+├── Photos/
+├── Games/
+├── Files/
+├── Downloads/
+└── hub/hub.sqlite
+```
+
+`infra/data/` non è versionato (dati reali dell'utente).
+
+## Principio di sviluppo
+
+Non si sviluppa tutto in parallelo. Ordine seguito (§39 in
+`SPEC_V1.md`):
+
+```
+Hardware → Linux+Docker → Hub Core+SQLite → Web App → Jellyfin →
+prima versione utilizzabile → Immich → File/Download → Gaming →
+Backup/Recovery → Remote Access → rifinitura
+```
+
+Primo milestone: un utente accende il Wyse, apre la Web App, vede la
+Home, accede alle librerie, riproduce un film e gestisce i propri file.

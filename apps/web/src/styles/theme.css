@@ -1,0 +1,88 @@
+:root {
+  color-scheme: dark;
+
+  /* Palette — dark-only in V1 (§18) */
+  --bg: #0a0b0d;
+  --bg-elevated: #131519;
+  --bg-card: #17191e;
+  --bg-hover: #1f2229;
+  --border: #24272e;
+  --text: #f2f3f5;
+  --text-muted: #9aa0ab;
+  --text-faint: #5c6270;
+
+  --accent: #6366f1;
+  --accent-strong: #818cf8;
+
+  --status-normal: #22c55e;
+  --status-attention: #f59e0b;
+  --status-problem: #ef4444;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 76px;
+
+  --focus-ring: 0 0 0 3px var(--accent-strong);
+
+  font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+/* Focus sempre visibile — richiesto per navigazione TV/D-pad (§19) */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}

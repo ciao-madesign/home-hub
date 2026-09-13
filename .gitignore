@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# SQLite data (runtime, not source)
+apps/api/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Docker volumes / media (never committed)
+infra/data/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
