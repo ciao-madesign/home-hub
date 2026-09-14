@@ -19,12 +19,26 @@ const FORWARDED_RESPONSE_HEADERS = [
 export async function mediaRoutes(app: FastifyInstance) {
   app.get("/api/media/:itemId/stream", { preHandler: requireAuth }, async (req, reply) => {
     const { itemId } = req.params as { itemId: string };
-    const { mediaSourceId } = req.query as { mediaSourceId?: string };
+    const { mediaSourceId, audioStreamIndex } = req.query as {
+      mediaSourceId?: string;
+      audioStreamIndex?: string;
+    };
+
+    // Direct Play (`static=true`, invariato): il contenitore originale viene
+    // servito byte per byte, con tutte le tracce audio già multiplexate —
+    // nessuna elaborazione lato Jellyfin. Selezionare una traccia diversa
+    // da quella di default richiede invece che Jellyfin remuxi/trasmetta
+    // solo quella traccia (§7: il browser non può farlo da solo, vedi
+    // lib/jellyfin.ts) — va quindi omesso `static` e passato
+    // `AudioStreamIndex`, così Jellyfin decide come servirlo.
+    const params = audioStreamIndex
+      ? { AudioStreamIndex: audioStreamIndex, ...(mediaSourceId ? { mediaSourceId } : {}) }
+      : { static: "true", ...(mediaSourceId ? { mediaSourceId } : {}) };
 
     try {
       const upstream = await jellyfinProxyFetch(
         `/Videos/${encodeURIComponent(itemId)}/stream`,
-        { static: "true", ...(mediaSourceId ? { mediaSourceId } : {}) },
+        params,
         req.headers.range ? { range: req.headers.range } : undefined,
       );
 

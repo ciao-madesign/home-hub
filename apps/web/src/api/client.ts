@@ -88,8 +88,16 @@ export interface MediaSummary {
   runtimeTicks: number | null;
 }
 
+export interface AudioTrackInfo {
+  index: number;
+  language: string | null;
+  title: string | null;
+  isDefault: boolean;
+}
+
 export interface MovieDetail extends MediaSummary {
   mediaSourceId: string | null;
+  audioTracks: AudioTrackInfo[];
 }
 
 export interface ResumeInfo {
@@ -116,6 +124,7 @@ export interface EpisodeDetail extends EpisodeSummary {
   seriesId: string | null;
   seriesName: string | null;
   mediaSourceId: string | null;
+  audioTracks: AudioTrackInfo[];
 }
 
 export interface ContinueWatchingItem {
@@ -137,9 +146,16 @@ export function mediaImageUrl(itemId: string): string {
   return `/api/media/${encodeURIComponent(itemId)}/image?token=${encodeURIComponent(getToken() ?? "")}`;
 }
 
-export function mediaStreamUrl(itemId: string, mediaSourceId?: string | null): string {
+export function mediaStreamUrl(
+  itemId: string,
+  mediaSourceId?: string | null,
+  audioStreamIndex?: number | null,
+): string {
   const params = new URLSearchParams({ token: getToken() ?? "" });
   if (mediaSourceId) params.set("mediaSourceId", mediaSourceId);
+  if (audioStreamIndex !== undefined && audioStreamIndex !== null) {
+    params.set("audioStreamIndex", String(audioStreamIndex));
+  }
   return `/api/media/${encodeURIComponent(itemId)}/stream?${params.toString()}`;
 }
 
@@ -415,6 +431,14 @@ export interface AllSessionEntry extends SessionEntry {
   displayName: string;
 }
 
+export interface SearchResultItem {
+  type: "movie" | "series" | "game" | "file";
+  id: string;
+  title: string;
+  subtitle: string | null;
+  url: string;
+}
+
 export interface Bookmark {
   id: string;
   title: string;
@@ -653,4 +677,6 @@ export const api = {
       body: JSON.stringify(fields),
     }),
   deleteBookmark: (id: string) => request<{ ok: true }>(`/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  search: (q: string) => request<{ results: SearchResultItem[] }>(`/search?q=${encodeURIComponent(q)}`),
 };

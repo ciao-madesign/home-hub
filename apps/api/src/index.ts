@@ -23,6 +23,7 @@ import { startMdnsAdvertising } from "./lib/network/mdns.js";
 import { setupRoutes } from "./routes/setup.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { bookmarksRoutes } from "./routes/bookmarks.js";
+import { searchRoutes } from "./routes/search.js";
 import { bootstrapDdnsUpdater } from "./lib/network/ddns.js";
 import { bootstrapServiceWatchdog } from "./lib/serviceWatchdog.js";
 
@@ -58,6 +59,7 @@ async function main() {
   await app.register(setupRoutes);
   await app.register(settingsRoutes);
   await app.register(bookmarksRoutes);
+  await app.register(searchRoutes);
 
   bootstrapBackupScheduler();
   startMdnsAdvertising();

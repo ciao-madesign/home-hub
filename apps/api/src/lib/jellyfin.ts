@@ -68,9 +68,19 @@ export async function jellyfinProxyFetch(
 
 // --- Tipi grezzi Jellyfin (solo i campi che ci servono) ---------------------
 
+interface JfMediaStream {
+  Type: string; // "Audio" | "Video" | "Subtitle" | ...
+  Index: number;
+  Language?: string;
+  DisplayTitle?: string;
+  Title?: string;
+  IsDefault?: boolean;
+}
+
 interface JfItem {
   Id: string;
   Name: string;
+  Type?: string; // "Movie" | "Series" | "Episode" | ...
   ProductionYear?: number;
   Overview?: string;
   Genres?: string[];
@@ -80,7 +90,7 @@ interface JfItem {
   SeasonId?: string;
   SeriesId?: string;
   SeriesName?: string;
-  MediaSources?: { Id: string }[];
+  MediaSources?: { Id: string; MediaStreams?: JfMediaStream[] }[];
 }
 
 interface JfItemsResponse {
@@ -100,8 +110,16 @@ export interface MediaSummary {
   runtimeTicks: number | null;
 }
 
+export interface AudioTrackInfo {
+  index: number;
+  language: string | null;
+  title: string | null;
+  isDefault: boolean;
+}
+
 export interface MovieDetail extends MediaSummary {
   mediaSourceId: string | null;
+  audioTracks: AudioTrackInfo[];
 }
 
 export interface SeasonSummary {
@@ -123,9 +141,32 @@ export interface EpisodeDetail extends EpisodeSummary {
   seriesId: string | null;
   seriesName: string | null;
   mediaSourceId: string | null;
+  audioTracks: AudioTrackInfo[];
 }
 
-const ITEM_FIELDS = "Overview,Genres,ProductionYear,CommunityRating,RunTimeTicks,MediaSources";
+const ITEM_FIELDS = "Overview,Genres,ProductionYear,CommunityRating,RunTimeTicks,MediaSources,MediaStreams";
+
+/**
+ * Selezione traccia audio (§7): con Direct Play il tag <video> nativo del
+ * browser non espone le tracce audio multiple di un contenitore — l'API
+ * `HTMLMediaElement.audioTracks` non è implementata da Chromium (solo da
+ * Safari, verificato empiricamente con un file reale multi-traccia).
+ * La selezione va quindi fatta lato Jellyfin: passare `AudioStreamIndex`
+ * allo stream endpoint (senza `static=true`) fa sì che Jellyfin remuxi/
+ * trasmetta solo quella traccia, indipendentemente dal supporto del
+ * browser — stesso approccio dei client Jellyfin ufficiali.
+ */
+function toAudioTracks(item: JfItem): AudioTrackInfo[] {
+  const streams = item.MediaSources?.[0]?.MediaStreams ?? [];
+  return streams
+    .filter((s) => s.Type === "Audio")
+    .map((s) => ({
+      index: s.Index,
+      language: s.Language ?? null,
+      title: s.DisplayTitle ?? s.Title ?? null,
+      isDefault: s.IsDefault ?? false,
+    }));
+}
 
 function toSummary(item: JfItem): MediaSummary {
   return {
@@ -140,7 +181,7 @@ function toSummary(item: JfItem): MediaSummary {
 }
 
 function toMovieDetail(item: JfItem): MovieDetail {
-  return { ...toSummary(item), mediaSourceId: item.MediaSources?.[0]?.Id ?? null };
+  return { ...toSummary(item), mediaSourceId: item.MediaSources?.[0]?.Id ?? null, audioTracks: toAudioTracks(item) };
 }
 
 export async function listMovies(): Promise<MediaSummary[]> {
@@ -219,7 +260,7 @@ export async function listEpisodes(
 export async function getEpisode(id: string): Promise<EpisodeDetail | null> {
   try {
     const item = await jf<JfItem>(`/Items/${encodeURIComponent(id)}`, {
-      Fields: "Overview,RunTimeTicks,MediaSources,SeriesId,SeasonId",
+      Fields: "Overview,RunTimeTicks,MediaSources,MediaStreams,SeriesId,SeasonId",
     });
     return {
       id: item.Id,
@@ -231,9 +272,29 @@ export async function getEpisode(id: string): Promise<EpisodeDetail | null> {
       seriesId: item.SeriesId ?? null,
       seriesName: item.SeriesName ?? null,
       mediaSourceId: item.MediaSources?.[0]?.Id ?? null,
+      audioTracks: toAudioTracks(item),
     };
   } catch (err) {
     if (err instanceof JellyfinError && err.status === 404) return null;
     throw err;
   }
+}
+
+export interface MediaSearchResult extends MediaSummary {
+  type: "movie" | "series";
+}
+
+/** Ricerca globale (§16): Film e Serie in un'unica chiamata a Jellyfin. */
+export async function searchMoviesAndSeries(term: string): Promise<MediaSearchResult[]> {
+  const data = await jf<JfItemsResponse>("/Items", {
+    IncludeItemTypes: "Movie,Series",
+    Recursive: "true",
+    SearchTerm: term,
+    Fields: ITEM_FIELDS,
+    Limit: "20",
+  });
+  return data.Items.map((item) => ({
+    ...toSummary(item),
+    type: item.Type === "Series" ? "series" : "movie",
+  }));
 }

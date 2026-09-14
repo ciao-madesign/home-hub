@@ -50,7 +50,12 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   salvataggio automatico del punto di visione e "Continua a guardare" in
   Home (stato di riproduzione tenuto nel DB Hub, non in Jellyfin),
   marcatura come guardato oltre il 90%, prompt di conferma "Prossimo
-  episodio".
+  episodio". **Selezione traccia audio multipla** (§7): un selettore
+  dedicato — il tag `<video>` nativo non basta, Chromium non implementa
+  `HTMLMediaElement.audioTracks` (verificato con un file reale
+  multi-traccia); la selezione passa `AudioStreamIndex` a Jellyfin, che
+  remuxa solo quella traccia, mentre la traccia di default resta Direct
+  Play a costo zero.
 - **Immich (Foto/Video personali)**: stesso pattern di isolamento.
   Timeline con filtro "solo video", album, visualizzazione full screen
   (lightbox con navigazione prev/next e riproduzione video), slideshow a
@@ -139,6 +144,10 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   **Non implementato**: standby/wake automatico, aggiornamenti
   dell'Hub con autorizzazione dalla Web App (§33) — per ora si
   aggiorna da riga di comando, vedi "Aggiornamenti" sotto.
+- **Ricerca globale unificata** (§16): un endpoint aggregatore interroga
+  Film/Serie, Giochi e File in parallelo e mostra i risultati raggruppati
+  per tipo dalla barra di ricerca in alto — Foto e Musica non ancora
+  incluse (vedi sopra).
 - **Web** (fuori roadmap, richiesta esplicita): sezione con collegamenti
   rapidi a siti esterni (es. La7 streaming) gestiti dagli admin, aperti
   nel browser reale del dispositivo — mai incorporati nell'Hub, perché
@@ -176,8 +185,9 @@ ambiente sandbox).
 
 Non ancora implementato: standby/wake automatico, aggiornamenti
 dell'Hub con autorizzazione dalla Web App, port forwarding automatico,
-tunnel di fallback, VPN personale, selezione traccia audio multipla,
-ricerca globale full-text, priorità dinamica di download/backup basata
+tunnel di fallback, VPN personale, ricerca globale su Foto/Musica
+(richiederebbe la ricerca "smart" di Immich, disattivata di default),
+priorità dinamica di download/backup basata
 sull'attività di streaming in corso (attualmente un limite di banda
 statico per entrambi), avvio sessioni Sunshine/Moonlight, libreria
 virtuale multi-disco con distribuzione automatica dei nuovi file. Vedi

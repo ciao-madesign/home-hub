@@ -95,6 +95,7 @@ export function MovieDetail() {
             itemType="movie"
             mediaSourceId={movie.mediaSourceId}
             resume={resume}
+            audioTracks={movie.audioTracks}
           />
         </div>
       )}

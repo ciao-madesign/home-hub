@@ -39,7 +39,14 @@ PROBLEM).
 
 ### Fase 4 — Web App
 ✅ React Web App, layout principale, sidebar collassabile, Home,
-ricerca globale (UI presente, backend non ancora unificato — vedi §5),
+**ricerca globale unificata** (§16): un endpoint aggregatore
+(`GET /api/search`) interroga in parallelo Film/Serie (Jellyfin,
+`SearchTerm`), Giochi e File (shared+private dell'utente corrente) e
+raggruppa i risultati per tipo. Ogni fonte è indipendente — se una non
+risponde, la ricerca continua comunque sulle altre (§31). Foto/Musica
+non ancora incluse (Immich richiederebbe la ricerca "smart"/ML,
+disattivata di default per l'hardware iniziale §3, o un match per nome
+file poco utile; Musica è ancora uno stub) — vedi decisione in §2.
 Area Sistema, gestione profilo, responsive desktop/mobile, dark theme,
 focus visibile per D-pad/TV. Non verificato su una TV/telecomando reale.
 
@@ -47,8 +54,13 @@ focus visibile per D-pad/TV. Non verificato su una TV/telecomando reale.
 ✅ Jellyfin (Film/Serie): catalogo, dettaglio con stagioni/episodi,
 Direct Play con supporto Range/seek, salvataggio punto di visione,
 "Continua a guardare", marcatura come guardato, prompt "Prossimo
-episodio". Selezione traccia audio delegata al player nativo del
-browser (nessuna UI dedicata — vedi proposte aperte).
+episodio". **Selezione traccia audio multipla** (§7): un selettore
+dedicato nel player, non il tag `<video>` nativo del browser — scoperto
+(verificato con un file reale multi-traccia via Chromium headless) che
+`HTMLMediaElement.audioTracks` non è implementato da Chromium (solo da
+Safari), quindi la selezione va fatta lato Jellyfin passando
+`AudioStreamIndex` allo stream endpoint invece di `static=true` — vedi
+decisione in §2.
 ✅ Immich (Foto/Video personali): timeline con filtro video, album,
 lightbox full screen, slideshow a intervallo configurabile.
 🟡 Validato contro server di test che replicano le API REST (Jellyfin e
@@ -437,6 +449,32 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   il modulo Gaming), pesante per l'hardware iniziale (Intel J4105, 8 GB
   RAM, §3), e comunque non garantirebbe la riproduzione su siti con
   protezioni anti-pirateria che rilevano browser non standard.
+- **Fase 5 — selezione audio lato Jellyfin, non lato browser**: ipotesi
+  iniziale (mai verificata finché non serviva davvero): con Direct Play
+  il tag `<video>` nativo avrebbe esposto le tracce multiple del
+  contenitore via `HTMLMediaElement.audioTracks`, lasciando all'utente
+  la scelta senza coinvolgere il server. Verificato empiricamente
+  **falso**: creato un file reale con due tracce audio (ffmpeg, sia
+  H.264/AAC sia VP9/Opus per escludere problemi di codec) e testato in
+  Chromium headless — la proprietà `audioTracks` non esiste affatto
+  sull'elemento (`'audioTracks' in video` → `false`). È un'API
+  implementata solo da Safari/WebKit, mai da Chromium — che è il motore
+  della stragrande maggioranza dei dispositivi reali (TV, Android,
+  Chrome desktop). Corretto quindi delegare la selezione a Jellyfin: lo
+  stream endpoint riceve `AudioStreamIndex` (invece di `static=true`) e
+  Jellyfin remuxa/trasmette solo quella traccia — stesso meccanismo
+  usato dai client Jellyfin ufficiali. Effetto collaterale positivo:
+  finché l'utente non tocca il selettore, resta tutto invariato (Direct
+  Play "static", zero elaborazione) — il costo del remux si paga solo
+  quando si sceglie davvero una traccia diversa da quella di default.
+- **Fase 4 — ricerca globale, risultati Giochi/File senza deep-link**: i
+  risultati Film/Serie aprono direttamente il dettaglio (`/film/:id`,
+  `/serie/:id`, già supportato dalle rispettive pagine); Giochi e File
+  aprono invece la sezione generica (`/giochi`, `/file`), perché quelle
+  pagine non supportano ancora l'apertura diretta di un elemento via
+  URL — il titolo/percorso mostrato nel risultato basta comunque per
+  ritrovarlo. Estendere Games/Files con un parametro di deep-link è
+  rimandabile a quando servirà davvero.
 
 ## 3. Proposte aperte / da decidere con l'utente
 
@@ -461,15 +499,6 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   streaming Jellyfin è attiva (Jellyfin espone un endpoint `/Sessions`)
   e/o quando un backup è in corso, e riduca il limite di banda di
   conseguenza in tempo reale.
-- **Selezione traccia audio multipla nel player**: §7 richiede che
-  l'utente scelga la traccia se ce ne sono più di una. Oggi il player
-  usa il tag `<video>` nativo del browser, che con Direct Play espone
-  solo la traccia di default del contenitore. Serve un player più
-  evoluto (o normalizzazione lato Jellyfin) per una selezione esplicita.
-- **Ricerca globale unificata**: la sidebar ha una barra di ricerca (§16)
-  ma oggi ogni sezione (Film, Serie, Foto, File) ha la propria ricerca
-  indipendente. Serve un endpoint aggregatore lato Hub API che interroghi
-  tutte le sorgenti e restituisca risultati unificati.
 - **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
   in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
   "Continua a guardare" già gestito lato Hub), andrebbe creato un account

@@ -71,6 +71,7 @@ export function EpisodeDetail() {
           itemType="episode"
           mediaSourceId={episode.mediaSourceId}
           resume={resume}
+          audioTracks={episode.audioTracks}
           onEnded={() => {
             if (nextEpisode) setShowNextPrompt(true);
           }}
