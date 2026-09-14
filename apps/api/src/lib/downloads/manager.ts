@@ -136,6 +136,10 @@ export function listDownloads(): DownloadRow[] {
   return store.listDownloads();
 }
 
+export function getDownloadsSummary(): { active: number; errored: number } {
+  return store.countDownloadsSummary();
+}
+
 /** Da chiamare all'avvio dell'Hub API: nessun processo/torrent sopravvive a un riavvio. */
 export function bootstrapDownloads(): void {
   store.resetStaleDownloadingRows();

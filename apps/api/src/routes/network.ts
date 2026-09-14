@@ -1,17 +1,9 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { getLocalNetworkInfo } from "../lib/network/interfaces.js";
-import { connectWifi, getWifiStatus, listWifiNetworks, WifiError } from "../lib/network/wifi.js";
+import { connectWifi, getWifiStatus, handleWifiError, listWifiNetworks } from "../lib/network/wifi.js";
 import { getDdnsStatus, updateDdns } from "../lib/network/ddns.js";
 import { requireAdmin } from "../plugins/auth.js";
-
-function handleWifiError(err: unknown, reply: FastifyReply): boolean {
-  if (err instanceof WifiError) {
-    reply.code(503).send({ error: "wifi_unavailable", message: err.message });
-    return true;
-  }
-  return false;
-}
 
 /**
  * Rete e setup iniziale (§21/§28). `/api/network/info` è volutamente senza

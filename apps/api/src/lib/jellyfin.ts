@@ -145,6 +145,11 @@ export interface EpisodeDetail extends EpisodeSummary {
 }
 
 const ITEM_FIELDS = "Overview,Genres,ProductionYear,CommunityRating,RunTimeTicks,MediaSources,MediaStreams";
+// Sottoinsieme di ITEM_FIELDS: la ricerca globale (§16) restituisce solo
+// MediaSummary (mai un dettaglio riproducibile), niente bisogno di
+// MediaSources/MediaStreams — che Jellyfin dovrebbe comunque popolare per
+// ogni risultato della lista.
+const SEARCH_FIELDS = "Overview,Genres,ProductionYear,CommunityRating,RunTimeTicks";
 
 /**
  * Selezione traccia audio (§7): con Direct Play il tag <video> nativo del
@@ -290,7 +295,7 @@ export async function searchMoviesAndSeries(term: string): Promise<MediaSearchRe
     IncludeItemTypes: "Movie,Series",
     Recursive: "true",
     SearchTerm: term,
-    Fields: ITEM_FIELDS,
+    Fields: SEARCH_FIELDS,
     Limit: "20",
   });
   return data.Items.map((item) => ({

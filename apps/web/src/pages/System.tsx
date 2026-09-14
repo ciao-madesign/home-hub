@@ -16,12 +16,7 @@ import {
   type WifiStatus,
 } from "../api/client";
 import { Modal, modalButtonRowStyle, modalDangerButtonStyle, modalSecondaryButtonStyle } from "../components/Modal";
-
-function formatBytes(bytes: number | null): string {
-  if (bytes === null) return "—";
-  const gb = bytes / 1024 ** 3;
-  return `${gb.toFixed(1)} GB`;
-}
+import { formatBytes, formatSqliteDateTime } from "../lib/format";
 
 function MetricCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -197,16 +192,6 @@ function WifiPanel() {
   );
 }
 
-function formatDateTime(sqliteTimestamp: string | null): string {
-  if (!sqliteTimestamp) return "—";
-  return new Date(`${sqliteTimestamp.replace(" ", "T")}Z`).toLocaleString("it-IT", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function DdnsPanel() {
   const [status, setStatus] = useState<DdnsStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -241,7 +226,7 @@ function DdnsPanel() {
     <div>
       <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 10px" }}>
         Dominio: <strong>{status.domain}.duckdns.org</strong> — ultimo aggiornamento:{" "}
-        {formatDateTime(status.lastUpdatedAt)} (
+        {formatSqliteDateTime(status.lastUpdatedAt)} (
         <span style={{ color: status.lastStatus === "ok" ? "var(--status-normal, #22c55e)" : "var(--status-problem)" }}>
           {status.lastStatus === "ok" ? "riuscito" : status.lastStatus === "error" ? "fallito" : "mai eseguito"}
         </span>
@@ -326,15 +311,6 @@ function NetworkSection() {
   );
 }
 
-function eventTimestamp(sqliteTimestamp: string): string {
-  return new Date(`${sqliteTimestamp.replace(" ", "T")}Z`).toLocaleString("it-IT", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function NotificationsSection() {
   const [events, setEvents] = useState<SystemEvent[] | null>(null);
 
@@ -362,7 +338,7 @@ function NotificationsSection() {
           >
             <span style={{ color: "var(--status-problem)" }}>{e.message}</span>
             <span style={{ color: "var(--text-faint)", marginLeft: 8, fontSize: 12 }}>
-              {eventTimestamp(e.createdAt)}
+              {formatSqliteDateTime(e.createdAt)}
             </span>
           </div>
         ))}

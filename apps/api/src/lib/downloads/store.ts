@@ -108,6 +108,23 @@ export function listByStatus(status: DownloadStatus): DownloadRow[] {
     .all(status) as unknown as DownloadRow[];
 }
 
+/**
+ * Riepilogo leggero per lo stato di sistema (§30): solo conteggi, niente
+ * purge né fetch di righe intere — a differenza di `listDownloads()`,
+ * pensata per la pagina Download, non per un poll ogni pochi secondi.
+ */
+export function countDownloadsSummary(): { active: number; errored: number } {
+  const row = getDb()
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN status IN ('downloading', 'queued') THEN 1 ELSE 0 END) as active,
+         SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errored
+       FROM downloads`,
+    )
+    .get() as { active: number | null; errored: number | null };
+  return { active: row.active ?? 0, errored: row.errored ?? 0 };
+}
+
 /** Ripristina lo stato dopo un riavvio dell'Hub API: nessun processo/torrent è realmente in corso. */
 export function resetStaleDownloadingRows(): void {
   getDb()

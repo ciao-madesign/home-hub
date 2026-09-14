@@ -19,6 +19,8 @@ export async function shutdownHost(): Promise<void> {
   try {
     await execFileAsync(config.shutdownCommand, args);
   } catch (err) {
-    throw new PowerError(`Spegnimento non riuscito: ${(err as Error).message}`);
+    const message = `Spegnimento non riuscito: ${(err as Error).message}`;
+    logSystemEvent("critical", "power", message);
+    throw new PowerError(message);
   }
 }

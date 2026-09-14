@@ -40,3 +40,20 @@ export function formatSpeed(bytesPerSec: number | null): string {
   if (!bytesPerSec || bytesPerSec <= 0) return "—";
   return `${formatBytes(bytesPerSec)}/s`;
 }
+
+/**
+ * Un timestamp SQLite ("YYYY-MM-DD HH:MM:SS", da datetime('now')) è sempre
+ * UTC ma senza indicazione di fuso — `new Date()` lo interpreterebbe come
+ * ora locale del browser se passato così com'è. "Z" lo forza a UTC prima
+ * di formattarlo nel fuso dell'utente (stesso pattern lato API in
+ * lib/sqliteDate.ts).
+ */
+export function formatSqliteDateTime(sqliteTimestamp: string | null): string {
+  if (!sqliteTimestamp) return "—";
+  return new Date(`${sqliteTimestamp.replace(" ", "T")}Z`).toLocaleString("it-IT", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

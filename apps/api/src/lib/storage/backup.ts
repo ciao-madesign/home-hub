@@ -95,6 +95,29 @@ async function hashFile(p: string): Promise<string> {
 
 type CopyOutcome = "copied" | "skipped_unchanged" | "skipped_race" | "failed";
 
+/** Conteggio ricorrente di esiti di copia (backup e ripristino): evita di ripetere lo stesso if/else in ogni loop. */
+interface CopyTally {
+  copied: number;
+  skipped: number;
+  failed: number;
+  bytes: number;
+}
+
+function newTally(): CopyTally {
+  return { copied: 0, skipped: 0, failed: 0, bytes: 0 };
+}
+
+function tally(t: CopyTally, result: { outcome: CopyOutcome; bytes: number }): void {
+  if (result.outcome === "copied") {
+    t.copied += 1;
+    t.bytes += result.bytes;
+  } else if (result.outcome === "failed") {
+    t.failed += 1;
+  } else {
+    t.skipped += 1;
+  }
+}
+
 /**
  * Copia src -> dest con limite di banda (§32), verifica di integrità
  * post-scrittura (§5: "verificata durante la creazione") e scrittura
@@ -222,73 +245,52 @@ async function executeBackup(trigger: BackupTrigger): Promise<BackupRunRow> {
   await fs.mkdir(backupRoot, { recursive: true });
 
   const run = createBackupRun(trigger);
-  let filesTotal = 0;
-  let filesCopied = 0;
-  let filesSkipped = 0;
-  let filesFailed = 0;
-  let bytesCopied = 0;
+  const t = newTally();
+
+  const configFiles: [string, string][] = [
+    [config.hubConfigPaths.apiEnv, "api.env"],
+    [config.hubConfigPaths.infraEnv, "infra.env"],
+    [config.hubConfigPaths.dockerCompose, "docker-compose.yml"],
+    [config.hubConfigPaths.systemdUnit, "home-hub-api.service"],
+  ];
 
   try {
     const manifest = await buildManifest();
-    filesTotal = manifest.length + 1 /* db */ + 4 /* config files */;
+    const filesTotal = manifest.length + 1 /* db */ + configFiles.length;
     updateBackupRun(run.id, { files_total: filesTotal });
 
     for (const entry of manifest) {
       const dest = path.join(backupRoot, entry.destRelPath);
-      const result = await copyVerified(entry.srcAbsPath, dest, config.backupMaxRateKbps * 1024);
-      if (result.outcome === "copied") {
-        filesCopied += 1;
-        bytesCopied += result.bytes;
-      } else if (result.outcome === "failed") {
-        filesFailed += 1;
-      } else {
-        filesSkipped += 1;
-      }
+      tally(t, await copyVerified(entry.srcAbsPath, dest, config.backupMaxRateKbps * 1024));
     }
 
     try {
-      const dbResult = await backupDatabase(backupRoot);
-      filesCopied += 1;
-      bytesCopied += dbResult.bytes;
+      tally(t, await backupDatabase(backupRoot));
     } catch {
-      filesFailed += 1;
+      t.failed += 1;
     }
 
-    const configFiles: [string, string][] = [
-      [config.hubConfigPaths.apiEnv, "api.env"],
-      [config.hubConfigPaths.infraEnv, "infra.env"],
-      [config.hubConfigPaths.dockerCompose, "docker-compose.yml"],
-      [config.hubConfigPaths.systemdUnit, "home-hub-api.service"],
-    ];
     for (const [srcPath, destRelPath] of configFiles) {
-      const result = await backupConfigFile(srcPath, destRelPath, backupRoot);
-      if (result.outcome === "copied") {
-        filesCopied += 1;
-        bytesCopied += result.bytes;
-      } else if (result.outcome === "failed") {
-        filesFailed += 1;
-      } else {
-        filesSkipped += 1;
-      }
+      tally(t, await backupConfigFile(srcPath, destRelPath, backupRoot));
     }
 
-    const status = filesFailed > 0 ? "completed_with_errors" : "completed";
+    const status = t.failed > 0 ? "completed_with_errors" : "completed";
     updateBackupRun(run.id, {
       status,
       finished_at: new Date().toISOString().replace("T", " ").slice(0, 19),
-      files_copied: filesCopied,
-      files_skipped: filesSkipped,
-      files_failed: filesFailed,
-      bytes_copied: bytesCopied,
+      files_copied: t.copied,
+      files_skipped: t.skipped,
+      files_failed: t.failed,
+      bytes_copied: t.bytes,
     });
   } catch (err) {
     updateBackupRun(run.id, {
       status: "failed",
       finished_at: new Date().toISOString().replace("T", " ").slice(0, 19),
-      files_copied: filesCopied,
-      files_skipped: filesSkipped,
-      files_failed: filesFailed,
-      bytes_copied: bytesCopied,
+      files_copied: t.copied,
+      files_skipped: t.skipped,
+      files_failed: t.failed,
+      bytes_copied: t.bytes,
       error_message: (err as Error).message,
     });
   }
@@ -336,14 +338,16 @@ async function restoreCategory(backupRoot: string, category: string, destDir: st
   const entries: ManifestEntry[] = [];
   await walk(path.join(backupRoot, category), category, entries);
   summary.filesTotal += entries.length;
+
+  const t = newTally();
   for (const entry of entries) {
     const relInsideCategory = entry.destRelPath.slice(category.length + 1);
     const dest = path.join(destDir, relInsideCategory);
-    const result = await copyVerified(entry.srcAbsPath, dest, 0);
-    if (result.outcome === "copied") summary.filesRestored += 1;
-    else if (result.outcome === "failed") summary.filesFailed += 1;
-    else summary.filesSkipped += 1;
+    tally(t, await copyVerified(entry.srcAbsPath, dest, 0));
   }
+  summary.filesRestored += t.copied;
+  summary.filesSkipped += t.skipped;
+  summary.filesFailed += t.failed;
 }
 
 /**

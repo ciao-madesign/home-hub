@@ -119,20 +119,22 @@ export interface SessionWithDeviceRow extends SessionRow {
   device_name: string | null;
 }
 
-function isActive(session: SessionRow): boolean {
-  if (session.revoked_at) return false;
-  return new Date(session.expires_at).getTime() >= Date.now();
-}
+// "Attiva" filtrato in SQL, non in JS dopo il fetch (stesso principio già
+// seguito altrove nel progetto: mai fare in JS quello che SQLite può fare
+// nella query). expires_at è già un ISO8601 completo (toISOString(), non il
+// formato "YYYY-MM-DD HH:MM:SS" di datetime('now') usato altrove) — verificato
+// che datetime() di SQLite lo normalizza comunque correttamente per il confronto.
+const ACTIVE_SESSION_WHERE = "revoked_at IS NULL AND datetime(expires_at) >= datetime('now')";
 
 export function listActiveSessionsForUser(userId: string): SessionWithDeviceRow[] {
-  const rows = getDb()
+  return getDb()
     .prepare(
       `SELECT s.*, d.name as device_name FROM sessions s
        LEFT JOIN devices d ON d.id = s.device_id
-       WHERE s.user_id = ? ORDER BY s.created_at DESC`,
+       WHERE s.user_id = ? AND ${ACTIVE_SESSION_WHERE}
+       ORDER BY s.created_at DESC`,
     )
     .all(userId) as unknown as SessionWithDeviceRow[];
-  return rows.filter(isActive);
 }
 
 export interface SessionWithUserRow extends SessionWithDeviceRow {
@@ -142,15 +144,15 @@ export interface SessionWithUserRow extends SessionWithDeviceRow {
 
 /** Vista admin (§24): tutte le sessioni attive di tutti gli utenti. */
 export function listAllActiveSessions(): SessionWithUserRow[] {
-  const rows = getDb()
+  return getDb()
     .prepare(
       `SELECT s.*, d.name as device_name, u.username, u.display_name FROM sessions s
        LEFT JOIN devices d ON d.id = s.device_id
        JOIN users u ON u.id = s.user_id
+       WHERE ${ACTIVE_SESSION_WHERE}
        ORDER BY s.created_at DESC`,
     )
     .all() as unknown as SessionWithUserRow[];
-  return rows.filter(isActive);
 }
 
 export function toSessionDto(row: SessionWithDeviceRow, currentSessionId: string) {

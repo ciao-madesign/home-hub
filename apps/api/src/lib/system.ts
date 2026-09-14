@@ -2,7 +2,7 @@ import os from "node:os";
 import fs from "node:fs/promises";
 import { config } from "../config.js";
 import { getLatestRun as getLatestBackupRun } from "./storage/backup.js";
-import { listDownloads } from "./downloads/manager.js";
+import { getDownloadsSummary } from "./downloads/manager.js";
 
 export type SystemLevel = "NORMAL" | "ATTENTION" | "PROBLEM";
 
@@ -105,11 +105,11 @@ export async function getSystemStatus(): Promise<SystemStatusReport> {
     lastStatus: latestBackup?.status ?? null,
   };
 
-  const allDownloads = listDownloads();
-  const downloads = {
-    active: allDownloads.filter((d) => d.status === "downloading" || d.status === "queued").length,
-    errored: allDownloads.filter((d) => d.status === "error").length,
-  };
+  // countDownloadsSummary(), non listDownloads(): quest'ultima esegue anche
+  // la purge lazy dei completati (§31-style, ma è un'operazione di scrittura
+  // fuori posto in un endpoint di stato interrogato ogni pochi secondi) e
+  // restituisce ogni colonna di ogni riga solo per contarne due sottoinsiemi.
+  const downloads = getDownloadsSummary();
 
   let level: SystemLevel = "NORMAL";
 

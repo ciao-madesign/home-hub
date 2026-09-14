@@ -7,7 +7,7 @@ import {
   type DiskInfo,
 } from "../api/client";
 import { useProfile } from "../context/ProfileContext";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatSqliteDateTime } from "../lib/format";
 import {
   Modal,
   modalButtonRowStyle,
@@ -22,12 +22,6 @@ function cardStyle(): React.CSSProperties {
     border: "1px solid var(--border)",
     background: "var(--bg-card)",
   };
-}
-
-function formatDateTime(sqliteTimestamp: string | null): string {
-  if (!sqliteTimestamp) return "—";
-  const date = new Date(`${sqliteTimestamp.replace(" ", "T")}Z`);
-  return date.toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 const RUN_STATUS_LABEL: Record<BackupRun["status"], string> = {
@@ -115,26 +109,32 @@ export function Storage() {
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [restoreResult, setRestoreResult] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (cancelledRef?: { current: boolean }) => {
     try {
       const [disksRes, statusRes, runsRes] = await Promise.all([
         api.listDisks(),
         api.getBackupStatus(),
         api.listBackupRuns(10),
       ]);
+      if (cancelledRef?.current) return;
       setDisks(disksRes.disks);
       setBackupStatus(statusRes);
       setRuns(runsRes.runs);
       setError(null);
     } catch {
+      if (cancelledRef?.current) return;
       setError("Impossibile contattare l'Hub API");
     }
   }, []);
 
   useEffect(() => {
-    load();
-    const id = setInterval(load, 10000);
-    return () => clearInterval(id);
+    const cancelledRef = { current: false };
+    load(cancelledRef);
+    const id = setInterval(() => load(cancelledRef), 10000);
+    return () => {
+      cancelledRef.current = true;
+      clearInterval(id);
+    };
   }, [load]);
 
   async function handleBackupNow() {
@@ -243,7 +243,7 @@ export function Storage() {
           <div style={cardStyle()}>
             <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-faint)" }}>Ultimo run</p>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
-              {backupStatus.latestRun ? formatDateTime(backupStatus.latestRun.startedAt) : "Mai eseguito"}
+              {backupStatus.latestRun ? formatSqliteDateTime(backupStatus.latestRun.startedAt) : "Mai eseguito"}
             </p>
             {backupStatus.latestRun && (
               <p style={{ margin: "4px 0 0", fontSize: 12, color: statusColor(backupStatus.latestRun.status) }}>
@@ -271,7 +271,7 @@ export function Storage() {
               }}
             >
               <span style={{ color: "var(--text-muted)" }}>
-                {formatDateTime(run.startedAt)} · {run.trigger === "manual" ? "manuale" : "automatico"}
+                {formatSqliteDateTime(run.startedAt)} · {run.trigger === "manual" ? "manuale" : "automatico"}
               </span>
               <span style={{ color: "var(--text-muted)" }}>
                 {run.filesCopied} copiati · {run.filesSkipped} invariati · {run.filesFailed} falliti ·{" "}

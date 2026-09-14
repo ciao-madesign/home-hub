@@ -1,10 +1,20 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type { FastifyReply } from "fastify";
 import { config } from "../../config.js";
 
 const execFileAsync = promisify(execFile);
 
 export class WifiError extends Error {}
+
+/** Traduce un WifiError in 503 (§31: backend interno non raggiungibile, mai un errore fatale). Riusato da /api/network/wifi/* e /api/setup/wifi/*. */
+export function handleWifiError(err: unknown, reply: FastifyReply): boolean {
+  if (err instanceof WifiError) {
+    reply.code(503).send({ error: "wifi_unavailable", message: err.message });
+    return true;
+  }
+  return false;
+}
 
 export interface WifiNetwork {
   ssid: string;
@@ -28,20 +38,18 @@ export interface WifiStatus {
  * operativo, poi usare `getWifiStatus` per rilevarla dalla Web App —
  * evita di dipendere da una sintassi nmcli per il WPS non standardizzata
  * e mai verificabile in questo ambiente.
+ *
+ * Niente pre-check separato con `nmcli --version`: si lancia direttamente
+ * il comando reale e si distingue "nmcli assente" (ENOENT, degrado non
+ * fatale) da un comando eseguito ma fallito (WifiError) sul suo errore,
+ * invece di spendere un processo in più ad ogni chiamata per scoprirlo in
+ * anticipo.
  */
-export async function isWifiManagementAvailable(): Promise<boolean> {
-  try {
-    await execFileAsync(config.nmcliPath, ["--version"]);
-    return true;
-  } catch {
-    return false;
-  }
+function isCommandNotFound(err: unknown): boolean {
+  return (err as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 export async function getWifiStatus(): Promise<WifiStatus> {
-  const available = await isWifiManagementAvailable();
-  if (!available) return { available: false, connectedSsid: null };
-
   try {
     const { stdout } = await execFileAsync(config.nmcliPath, ["-t", "-f", "ACTIVE,SSID", "device", "wifi", "list"]);
     const activeLine = stdout
@@ -51,14 +59,12 @@ export async function getWifiStatus(): Promise<WifiStatus> {
     const connectedSsid = activeLine ? activeLine.slice("yes:".length) : null;
     return { available: true, connectedSsid: connectedSsid || null };
   } catch (err) {
+    if (isCommandNotFound(err)) return { available: false, connectedSsid: null };
     throw new WifiError(`Lettura stato Wi-Fi fallita: ${(err as Error).message}`);
   }
 }
 
 export async function listWifiNetworks(): Promise<WifiNetwork[]> {
-  const available = await isWifiManagementAvailable();
-  if (!available) return [];
-
   try {
     const { stdout } = await execFileAsync(config.nmcliPath, [
       "-t",
@@ -79,20 +85,19 @@ export async function listWifiNetworks(): Promise<WifiNetwork[]> {
     }
     return networks.sort((a, b) => b.signal - a.signal);
   } catch (err) {
+    if (isCommandNotFound(err)) return [];
     throw new WifiError(`Scansione Wi-Fi fallita: ${(err as Error).message}`);
   }
 }
 
 export async function connectWifi(ssid: string, password: string | null): Promise<void> {
-  const available = await isWifiManagementAvailable();
-  if (!available) throw new WifiError("Gestione Wi-Fi non disponibile (nmcli assente)");
-
   const args = ["device", "wifi", "connect", ssid];
   if (password) args.push("password", password);
 
   try {
     await execFileAsync(config.nmcliPath, args);
   } catch (err) {
+    if (isCommandNotFound(err)) throw new WifiError("Gestione Wi-Fi non disponibile (nmcli assente)");
     throw new WifiError(`Connessione a "${ssid}" fallita: ${(err as Error).message}`);
   }
 }
