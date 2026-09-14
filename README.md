@@ -383,6 +383,9 @@ dall'estero), non per il normale accesso alla Web App da remoto.
 `docs/SPECIFICHE.md` §3): il port forwarding al punto 4 non funzionerà,
 serve un tunnel verso un servizio esterno (non ancora implementato).
 
+Guida passo passo per chi deve solo *usare* la VPN (non configurarla),
+da linkare o stampare per gli utenti finali: `docs/GUIDA_VPN.md`.
+
 ### Aggiornamenti
 
 ```bash
