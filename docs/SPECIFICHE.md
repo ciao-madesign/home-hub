@@ -6,13 +6,19 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo il VPN personale WireGuard (Fase 9, completa —
-codice e verifica limitata a quanto testabile senza hardware reale).
-Restano da fare, quando l'utente avrà l'hardware pronto: verifica reale
-del VPN (nessun modulo kernel WireGuard disponibile in questo ambiente),
-port forwarding/tunnel reale (Fase 9 — l'ISP dell'utente, EOLO, è
-probabilmente dietro CGNAT, vedi §3), standby/wake e aggiornamenti
-autorizzati (Fase 10), Fase 11 (test integrali su hardware reale).
+Ultimo aggiornamento: dopo un blocco di 6 funzionalità richieste
+esplicitamente dall'utente — priorità di banda dinamica (§32), ricerca
+globale su Foto (§16), selezione automatica della macchina in Gaming
+(§10), libreria virtuale multi-disco per il File Manager (§4),
+aggiornamenti Hub dalla Web App (§33), tunnel di fallback gratuito
+Cloudflare (§23) — tutte chiudono proposte aperte elencate in questo
+stesso documento. Restano da fare, quando l'utente avrà l'hardware
+pronto: verifica reale del VPN (nessun modulo kernel WireGuard
+disponibile in questo ambiente), port forwarding/tunnel reale (l'ISP
+dell'utente, EOLO, è probabilmente dietro CGNAT, vedi §3 — per questo
+il tunnel Cloudflare è stato costruito subito, senza aspettare
+l'hardware), standby/wake (Fase 10), Fase 11 (test integrali su
+hardware reale).
 
 ---
 
@@ -43,12 +49,14 @@ PROBLEM).
 ✅ React Web App, layout principale, sidebar collassabile, Home,
 **ricerca globale unificata** (§16): un endpoint aggregatore
 (`GET /api/search`) interroga in parallelo Film/Serie (Jellyfin,
-`SearchTerm`), Giochi e File (shared+private dell'utente corrente) e
-raggruppa i risultati per tipo. Ogni fonte è indipendente — se una non
-risponde, la ricerca continua comunque sulle altre (§31). Foto/Musica
-non ancora incluse (Immich richiederebbe la ricerca "smart"/ML,
-disattivata di default per l'hardware iniziale §3, o un match per nome
-file poco utile; Musica è ancora uno stub) — vedi decisione in §2.
+`SearchTerm`), Foto (Immich, match per nome file — `originalFileName` su
+`/api/search/metadata`, decisione dell'utente di accontentarsi invece
+della ricerca "smart"/ML, disattivata di default per l'hardware
+iniziale §3, chiude la proposta aperta), Giochi e File (shared+private
+dell'utente corrente) e raggruppa i risultati per tipo. Ogni fonte è
+indipendente — se una non risponde, la ricerca continua comunque sulle
+altre (§31). Musica resta esclusa: è ancora uno stub, senza contenuti da
+cercare.
 Area Sistema, gestione profilo, responsive desktop/mobile, dark theme,
 focus visibile per D-pad/TV. Non verificato su una TV/telecomando reale.
 
@@ -74,13 +82,34 @@ bloccato). Da validare contro istanze vere prima del deploy.
 (= cambio privacy shared/private), cestino 7gg con ripristino,
 eliminazione definitiva (cestino o diretta con conferma), rilevamento
 duplicati per hash, ricerca per nome. Validato su filesystem reale.
+**Libreria virtuale multi-disco (§4)**: chiude la proposta aperta, solo
+per questa cartella (`Files/`) — union filesystem in user space
+(`lib/storage/library.ts`) sui dischi con `role: "data"`
+(`HUB_EXTRA_DISKS_JSON`, opt-in). Scritture: il disco con più spazio
+libero in quel momento. Letture (elenco/ricerca/duplicati/download):
+unite su tutti i dischi raggiungibili come un'unica cartella. Un move/
+rename resta sempre sul disco fisico di origine (§4 riguarda la scelta
+per i nuovi file, non gli spostamenti); il cestino segue lo stesso
+principio (nuova colonna `disk_id`, migrazione 0011). Verificato per
+davvero con due cartelle come due dischi distinti: upload, file piazzato
+manualmente sul secondo disco visibile nell'elenco/ricerca/duplicati
+(anche cross-disco), rename/move/trash/restore/download risolti sul
+disco giusto, conflitto di nome tra dischi rilevato alla creazione.
 ✅ Download Manager: coda unica download URL (yt-dlp) + torrent
 (WebTorrent embedded), pausa/ripresa/annulla reali per entrambi i
-motori, priorità minima via limite di banda globale, nessuno storico
-permanente per i completati. Validato con yt-dlp reale e un vero scambio
-BitTorrent peer-to-peer locale.
-⬜ Gestione spazio (dischi multipli, distribuzione automatica) — non
-ancora affrontata, fa parte concettualmente della Fase 8.
+motori, nessuno storico permanente per i completati. **Priorità di banda
+dinamica (§32)**: chiude la proposta aperta — il limite si riduce
+quando c'è streaming Jellyfin attivo o un backup in corso (poll lazy su
+`GET /Sessions`, `lib/priority.ts`); WebTorrent si aggiorna a caldo
+(`throttleDownload()`, verificato che `-1` disattiva il limite), yt-dlp
+resta fisso al lancio del processo (nessun modo di cambiarlo a caldo,
+limitazione nota). Validato con yt-dlp reale, un vero scambio BitTorrent
+peer-to-peer locale, e `isStreamingActive()` contro uno stub HTTP fedele
+a `GET /Sessions` di Jellyfin.
+⬜ Games ancora su un unico disco dati: la libreria multi-disco sopra
+copre solo il File Manager, estendere Games/Downloads è un passo
+successivo separato (volutamente non affrontato in questa passata per
+non allargare troppo il cambiamento).
 
 ### Fase 7 — Gaming
 🟡 Fatto: catalogo giochi (titolo, piattaforma, copertina, stato),
@@ -88,11 +117,19 @@ importazione da cartelle monitorate con conferma (§13), esecuzione locale
 di emulatori retro (spawn del processo, un'esecuzione alla volta per
 gioco, stop), gestione macchine (locale + PC remoti), Wake-on-LAN
 (pacchetto magico verificato byte per byte), probe di stato online/
-offline, backup centralizzato dei salvataggi. "L'Hub seleziona
-automaticamente la macchina" è implementato in modo semplice: usa la
-macchina assegnata al gioco (default locale), l'utente la cambia da un
-menu — non c'è ancora un'euristica di selezione automatica basata su
-compatibilità.
+offline, backup centralizzato dei salvataggi. **Selezione automatica
+della macchina (§10)**: chiude la proposta aperta — quando un gioco non
+ha una macchina assegnata esplicitamente (che vince comunque sempre),
+piattaforma emulabile localmente (mappa emulatori) → locale;
+altrimenti la prima macchina remota configurata online al probe TCP, o
+comunque la prima (svegliata via Wake-on-LAN dal flusso esistente);
+nessuna remota configurata → locale, come prima (`lib/gaming/
+autoSelect.ts`). La risposta di `/api/games/:id/launch` include ora
+`machineId`/`machineName` per trasparenza. Verificato per davvero via
+curl: gioco NES → locale; gioco PC senza remote → ricade su locale
+(stesso errore "nessuna ROM" della locale); stesso gioco PC dopo aver
+aggiunto una remota → la sceglie, prova il probe (fallisce, host
+irraggiungibile qui) e invia Wake-on-LAN.
 ⬜ Non fatto: avvio effettivo di una sessione Sunshine/Moonlight (solo
 Wake-on-LAN + verifica stato — vedi proposte aperte, §3), spegnimento
 remoto sicuro (implementato ma richiede un agente HTTP sul PC remoto non
@@ -275,9 +312,29 @@ l'interfaccia, le regole iptables di isolamento/NAT applicate a un
 traffico reale, un handshake WireGuard genuino da un client esterno,
 l'intero percorso "da fuori casa con l'IP di casa" — tutto da verificare
 al deploy sul Wyse, insieme a port forwarding automatico (UPnP/NAT-PMP,
-per ora manuale, vedi README "Deploy") e tunnel fallback per router
-senza port forwarding (non implementato, coerente con l'esclusione già
-nota per EOLO/CGNAT, §3).
+per ora manuale, vedi README "Deploy").
+
+**Tunnel di fallback gratuito (§23, per chi non può fare port
+forwarding — es. CGNAT, probabile con EOLO)**: chiude la proposta
+aperta, costruito subito invece di aspettare l'hardware perché non
+richiede nulla di specifico del Wyse. Due servizi Docker opzionali
+(profilo `remote-tunnel`): `cloudflared` (Cloudflare Tunnel — connessione
+in uscita dall'Hub, nessuna porta da aprire, sempre gratuito per questo
+uso) e un secondo Caddy minimale (`Caddyfile.tunnel`, senza TLS —
+Cloudflare lo termina già al proprio edge — con la stessa barriera di
+sicurezza già nel Caddyfile principale per `/api/profiles*`/
+`/api/setup/*`, indispensabile anche qui per lo stesso motivo). Bug
+preesistente trovato e corretto nello stesso file: `${HUB_PUBLIC_DOMAIN:?
+messaggio}` nel servizio `caddy` rompeva l'intero `docker-compose.yml`
+(quindi anche jellyfin/immich/web) per chi non aveva configurato
+l'accesso remoto HTTPS, perché valutato per l'intero file a prescindere
+dai profili attivi — corretto con un default vuoto, applicato
+preventivamente anche al nuovo `cloudflared`. Verificato per davvero:
+`Caddyfile.tunnel` validato con `caddy validate` ed eseguito con
+un'istanza Caddy reale (403 sui percorsi bloccati, proxy funzionante sul
+resto); `docker-compose.yml` validato con `docker compose config` in
+tutti gli scenari di profilo/variabili. Non verificabile qui: un
+account/tunnel Cloudflare reale, `cloudflared` stesso.
 
 ### Fase 10 — Sistema
 🟡 Fatto: monitoraggio CPU/RAM/temperatura/storage/servizi, indicatore
@@ -305,15 +362,26 @@ Sistema solo quando `level='critical'`. **Spegnimento sicuro da Web App**
 root, §26) riceve un permesso sudo mirato a questo unico comando
 (`infra/systemd/homehub-shutdown-sudoers`), non un sudo generico;
 verificato per davvero l'invocazione esatta con un `sudo` fittizio.
-⬜ Non fatto: priorità risorse dinamica (oggi il limite di banda dei
-download/backup è statico, non reagisce a streaming/backup attivi in
-tempo reale — stessa semplificazione già nota, vedi proposte aperte
-§3), standby/wake automatico (richiede test su hardware reale con
-supporto ACPI/Wake-on-LAN, rimandato), aggiornamenti dell'Hub con
-autorizzazione dalla Web App (§33 — oggi l'aggiornamento resta manuale
-da riga di comando, documentato in README "Aggiornamenti"; automatizzare
-il controllo versione/changelog/riavvio-condizionato è un pezzo a sé,
-non affrontato in questa passata).
+**Aggiornamenti dell'Hub autorizzati dalla Web App (§33)**: chiude la
+proposta aperta — Sistema → Aggiornamenti (admin) mostra i commit non
+ancora applicati rispetto a `origin/<branch>` e li applica dietro
+conferma: `git fetch` reale + `merge --ff-only` (mai un merge/rebase
+automatico su una copia locale divergente, §26 — fallisce in modo sicuro
+invece di combinare storie diverse), `npm install && npm run build`,
+poi riavvio del servizio (permesso sudo mirato a un solo comando fisso,
+`infra/systemd/homehub-update-sudoers`, stesso principio dello
+spegnimento) e ricostruzione dei container Docker (riusa la capacità già
+richiesta per il watchdog dei servizi). Il riavvio non viene atteso
+dalla richiesta HTTP che lo ha innescato (il processo verrà terminato da
+systemd a metà della stessa chiamata). Verificato per davvero: stato
+contro il repository git reale di questo progetto; la sequenza fetch →
+confronto commit → `merge --ff-only` contro una coppia di repository git
+creati apposta, sia nel caso fast-forward riuscito sia nel rifiuto
+sicuro su storia divergente. Non verificabile qui: riavvio via sudo e
+ricostruzione container (nessun systemd/demone Docker reale).
+
+⬜ Non fatto: standby/wake automatico (richiede test su hardware reale
+con supporto ACPI/Wake-on-LAN, rimandato).
 
 ### Fase 11 — Test V1
 ⬜ Richiede hardware reale (Dell Wyse) e servizi reali (Jellyfin/Immich
@@ -567,20 +635,11 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   rischio**: informazione raccolta in conversazione, da verificare
   concretamente quando router e Wyse saranno disponibili (confronto tra
   l'IP pubblico mostrato dal router e quello visto da un dispositivo su
-  rete mobile — se diversi, CGNAT confermato). Se confermato, il port
-  forwarding manuale descritto in README "Deploy" §3 non funzionerà: va
-  usato da subito il **tunnel** già previsto come fallback da SPEC_V1
-  §23 (es. Cloudflare Tunnel, gratuito, nessuna porta da aprire perché è
-  l'Hub a stabilire la connessione verso l'esterno, non viceversa) —
-  non ancora implementato. Da riprendere insieme al VPN quando l'utente
-  avrà l'hardware pronto (rimandato in coda su sua richiesta).
-- **Priorità risorse dinamica per i download**: oggi il limite di banda
-  del Download Manager è statico (un valore configurato una volta). La
-  spec (§32) implica una riduzione dinamica quando streaming/backup sono
-  attivi. Implementarla richiede che l'Hub sappia quando una sessione di
-  streaming Jellyfin è attiva (Jellyfin espone un endpoint `/Sessions`)
-  e/o quando un backup è in corso, e riduca il limite di banda di
-  conseguenza in tempo reale.
+  rete mobile — se diversi, CGNAT confermato). **Chiusa lato codice**: se
+  confermato, il port forwarding manuale non funzionerà, ma il tunnel di
+  fallback (Cloudflare Tunnel, gratuito, nessuna porta da aprire) è ora
+  implementato — vedi Fase 9 e README "Deploy". Resta da fare solo la
+  verifica del CGNAT stesso quando l'hardware sarà disponibile.
 - **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
   in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
   "Continua a guardare" già gestito lato Hub), andrebbe creato un account
@@ -607,31 +666,22 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   Effetto collaterale positivo: anche Wake-on-LAN (broadcast UDP) e la
   lettura di temperatura/CPU reali (§30) diventano più semplici senza
   dover concedere privilegi di rete/host estesi a un container.
-- **Selezione automatica della macchina di esecuzione**: oggi "l'Hub
-  seleziona automaticamente" è in realtà "usa la macchina assegnata al
-  gioco, di default quella locale" — non c'è ancora un'euristica che
-  guardi la piattaforma del gioco e la disponibilità delle macchine per
-  scegliere automaticamente.
 - **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
   di gioco su PC remoto oggi si ferma a Wake-on-LAN + verifica stato.
   Avviare davvero un'app/gioco via Sunshine richiede implementare il suo
   flusso di pairing (PIN + certificati TLS client) — scope non banale,
   volutamente rimandato.
-- **Priorità risorse dinamica per il backup**: stessa limitazione già
-  nota per i download (§32) — `HUB_BACKUP_MAX_RATE_KBPS` è un limite di
-  banda statico, non legato in tempo reale a una sessione di streaming
-  Jellyfin attiva. Andrebbe risolta insieme alla proposta analoga sui
-  download, con la stessa fonte di verità (endpoint `/Sessions` di
-  Jellyfin).
-- **Libreria virtuale multi-disco**: §4 descrive una singola libreria
-  virtuale che distribuisce automaticamente i nuovi file tra più dischi
-  quando disponibili. Fase 8 implementa solo la *visibilità* di più
-  dischi (capacità, SMART, stato) — File Manager, Gaming e Download
-  Manager continuano ad assumere un unico disco dati
-  (`HUB_DATA_ROOT`). Estendere la scrittura a più dischi è un refactor
-  più ampio, volutamente rimandato: richiede una strategia di
-  distribuzione (per spazio libero? per categoria?) su cui serve
-  allinearsi con l'utente prima di implementarla.
+- **Libreria virtuale multi-disco per Games/Downloads/Photos**: §4
+  descrive una singola libreria virtuale multi-disco — implementata per
+  il File Manager (Fase 6, `lib/storage/library.ts`), non ancora
+  estesa a Gaming/Download Manager/Photos, che continuano ad assumere un
+  unico disco dati (`HUB_DATA_ROOT`). Estenderla è più semplice ora che
+  il meccanismo di base esiste già ed è riusabile, ma resta un passo
+  separato volutamente non affrontato in questa passata.
+
+(**Selezione automatica della macchina di esecuzione** e **priorità
+risorse dinamica per download/backup**: proposte chiuse, vedi Fase 7 e
+Fase 6/10.)
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 
@@ -696,3 +746,30 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   reale, un handshake genuino da un client esterno, che
   `AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW` nel service systemd sia
   sufficiente senza root (vedi `infra/systemd/home-hub-api.service`).
+- Priorità di banda dinamica (`lib/priority.ts`): `isStreamingActive()`
+  verificato per davvero contro uno stub HTTP fedele a `GET /Sessions`
+  di Jellyfin (tutti i casi: vuoto, in riproduzione, in pausa, senza
+  `NowPlayingItem`); non verificato contro un'istanza Jellyfin reale con
+  una riproduzione vera in corso.
+- Libreria virtuale multi-disco (`lib/storage/library.ts`): verificata a
+  fondo su filesystem reale con due cartelle come due dischi distinti in
+  questo ambiente (stesso filesystem sottostante, quindi spazio libero
+  sempre identico) — la scelta "più spazio libero" non è mai stata
+  esercitata con dischi che hanno davvero spazio diverso; da verificare
+  sul Wyse con dischi reali di capacità diverse.
+- Selezione automatica della macchina in Gaming
+  (`lib/gaming/autoSelect.ts`): verificata via curl con un probe TCP che
+  fallisce (host di test irraggiungibile in questo ambiente) — il ramo
+  "macchina remota online" (probe riuscito) non è stato esercitato
+  contro un vero PC remoto raggiungibile.
+- Aggiornamenti Hub (`lib/updates.ts`): la sequenza git (fetch, confronto
+  commit, `merge --ff-only`) verificata per davvero contro repository
+  git creati apposta, sia nel caso fast-forward sia nel rifiuto su
+  storia divergente; il riavvio via sudo e la ricostruzione dei
+  container Docker non sono verificabili in questo ambiente (nessun
+  systemd/demone Docker reale).
+- Tunnel di fallback gratuito (`infra/Caddyfile.tunnel`): il blocco di
+  sicurezza verificato per davvero con un'istanza Caddy reale contro un
+  backend fittizio; nessun account/tunnel Cloudflare reale disponibile
+  in questo ambiente per verificare `cloudflared` stesso o il percorso
+  end-to-end da Internet.
