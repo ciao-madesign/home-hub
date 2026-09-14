@@ -23,6 +23,7 @@ import { startMdnsAdvertising } from "./lib/network/mdns.js";
 import { setupRoutes } from "./routes/setup.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { bootstrapDdnsUpdater } from "./lib/network/ddns.js";
+import { bootstrapServiceWatchdog } from "./lib/serviceWatchdog.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -59,6 +60,7 @@ async function main() {
   bootstrapBackupScheduler();
   startMdnsAdvertising();
   bootstrapDdnsUpdater();
+  bootstrapServiceWatchdog();
 
   await app.listen({ port: config.port, host: config.host });
 }

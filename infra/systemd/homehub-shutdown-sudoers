@@ -1,0 +1,14 @@
+# Permesso sudo mirato per lo spegnimento sicuro da Web App (§34).
+#
+# L'Hub API gira come utente di sistema non privilegiato "homehub" (§26,
+# least privilege) — non root, non membro di sudoers per default. Questo
+# file gli concede UN SOLO comando specifico, senza password, invece di un
+# sudo generico: se compromesso, l'Hub API può solo spegnere la macchina,
+# non eseguire comandi arbitrari come root.
+#
+# Installazione:
+#   sudo cp infra/systemd/homehub-shutdown-sudoers /etc/sudoers.d/homehub-shutdown
+#   sudo chmod 440 /etc/sudoers.d/homehub-shutdown
+#   sudo visudo -c   # verifica sintassi prima di fidarsi del file installato
+
+homehub ALL=(root) NOPASSWD: /sbin/shutdown -h now

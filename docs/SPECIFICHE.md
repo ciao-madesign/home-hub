@@ -6,9 +6,12 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo Fase 9 parte 3 (accesso remoto — sessioni,
-password, DDNS, HTTPS via Caddy), prima del port forwarding/tunnel reale
-e del VPN (rimandato in coda su richiesta dell'utente).
+Ultimo aggiornamento: dopo Fase 10 (Sistema — stato Internet, riavvio
+automatico dei servizi con escalation critica, notifiche, spegnimento
+sicuro). Restano da fare, quando l'utente avrà l'hardware pronto: port
+forwarding/tunnel reale e VPN (Fase 9, rimandati in coda su richiesta
+dell'utente — l'ISP dell'utente, EOLO, è probabilmente dietro CGNAT,
+vedi §3), standby/wake e aggiornamenti autorizzati (Fase 10).
 
 ---
 
@@ -196,10 +199,39 @@ resto della fase.
 
 ### Fase 10 — Sistema
 🟡 Fatto: monitoraggio CPU/RAM/temperatura/storage/servizi, indicatore
-NORMAL/ATTENTION/PROBLEM. Mancante: stato Internet dedicato, riavvio
-automatico dei servizi falliti, priorità risorse dinamica (oggi il
-limite di banda dei download è statico, non reagisce a streaming/backup
-attivi in tempo reale), standby/wake, aggiornamenti autorizzati.
+NORMAL/ATTENTION/PROBLEM. **Stato Internet** (§30): endpoint leggero tipo
+"generate_204", deliberatamente escluso dal calcolo dell'indicatore
+generale — l'assenza di Internet è un modo d'uso pienamente supportato
+(§27, offline-first), non "un problema" da segnalare come tale; resta
+visibile come campo a sé nella pagina Sistema. **Riepilogo backup/
+download** (§30) nello stato di sistema: un backup configurato che
+fallisce davvero (non semplicemente "non configurato", che è una scelta
+legittima §5) alza l'indicatore ad ATTENTION. **Riavvio automatico dei
+servizi** (§31): Jellyfin/Immich girano in Docker separati dall'Hub API
+(§2/§3) — un watchdog interno (`lib/serviceWatchdog.ts`, poll periodico
+lazy) tenta `docker restart <container>` dopo N controlli falliti
+consecutivi, fino a un numero massimo di tentativi; esauriti quelli,
+registra un evento **critico** invece di continuare a riprovare
+all'infinito, e si azzera da solo se il servizio torna raggiungibile —
+verificato per davvero: sequenza di tentativi (1/N, 2/N…) fino
+all'evento critico finale, con un `docker` fittizio che registra
+l'invocazione esatta (`docker restart jellyfin`). **Notifiche** (§30,
+"solo eventi critici"): tabella `system_events`, mostrate nella pagina
+Sistema solo quando `level='critical'`. **Spegnimento sicuro da Web App**
+(§34): endpoint admin-only con conferma esplicita, esegue
+`sudo /sbin/shutdown -h now` — l'utente di sistema dell'Hub API (non
+root, §26) riceve un permesso sudo mirato a questo unico comando
+(`infra/systemd/homehub-shutdown-sudoers`), non un sudo generico;
+verificato per davvero l'invocazione esatta con un `sudo` fittizio.
+⬜ Non fatto: priorità risorse dinamica (oggi il limite di banda dei
+download/backup è statico, non reagisce a streaming/backup attivi in
+tempo reale — stessa semplificazione già nota, vedi proposte aperte
+§3), standby/wake automatico (richiede test su hardware reale con
+supporto ACPI/Wake-on-LAN, rimandato), aggiornamenti dell'Hub con
+autorizzazione dalla Web App (§33 — oggi l'aggiornamento resta manuale
+da riga di comando, documentato in README "Aggiornamenti"; automatizzare
+il controllo versione/changelog/riavvio-condizionato è un pezzo a sé,
+non affrontato in questa passata).
 
 ### Fase 11 — Test V1
 ⬜ Richiede hardware reale (Dell Wyse) e servizi reali (Jellyfin/Immich
@@ -361,6 +393,26 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
     collegamento end-to-end "da fuori" resteranno non validati fino al
     deploy sul Wyse (stesso trattamento già riservato a Jellyfin/Immich
     reali).
+- **Fase 10 — Internet e backup "non configurato" non alzano
+  l'indicatore generale**: `getSystemStatus()` calcola NORMAL/ATTENTION/
+  PROBLEM da CPU/RAM/temperatura/storage/servizi come prima, ma
+  volutamente NON considera "problema" l'assenza di Internet (§27:
+  l'Hub è pienamente utilizzabile offline, trattarlo come un'anomalia
+  del sistema sarebbe fuorviante) né un backup semplicemente non
+  configurato (§5: è un'espansione futura legittima, non un difetto).
+  Solo un backup configurato che fallisce davvero alza l'indicatore.
+  Entrambi i segnali restano comunque visibili come campi a sé nella
+  risposta e nella pagina Sistema — solo l'indicatore aggregato li
+  ignora.
+- **Fase 10 — watchdog dei servizi separato dal polling dello stato**:
+  `GET /api/system/status` calcola lo stato "al volo" ad ogni chiamata
+  (comportamento invariato dalle fasi precedenti), ma il riavvio
+  automatico non può dipendere da quante volte il frontend interroga
+  quell'endpoint — serve un controllo indipendente e continuo anche a
+  browser chiuso. Per questo il watchdog (`lib/serviceWatchdog.ts`) ha
+  un proprio `setInterval` interno (stesso pattern lazy-scheduler già
+  usato per backup/DDNS/mDNS), con uno stato in memoria per contare
+  fallimenti consecutivi e tentativi di riavvio per servizio.
 
 ## 3. Proposte aperte / da decidere con l'utente
 
@@ -488,3 +540,12 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   nessuno di questi disponibile qui. Port forwarding automatico
   (UPnP/NAT-PMP) non implementato: in V1 va aperto manualmente sul router
   (documentato in README "Deploy").
+- Riavvio automatico dei servizi (`lib/serviceWatchdog.ts`) e spegnimento
+  sicuro (`lib/power.ts`) verificati contro `docker`/`sudo` fittizi che
+  registrano l'invocazione esatta ricevuta — confermato che i comandi
+  costruiti sono quelli giusti (`docker restart <container>`,
+  `sudo /sbin/shutdown -h now`), non contro un demone Docker reale né un
+  sistema con systemd/sudoers reali (questo ambiente sandbox non ha
+  nessuno dei due, vedi l'inizio di questo documento). Da verificare sul
+  Wyse: che l'utente `homehub` sia effettivamente nel gruppo `docker` e
+  che il file sudoers installato funzioni come previsto.

@@ -122,4 +122,29 @@ export const config = {
   ddnsToken: envOptional("HUB_DDNS_TOKEN"),
   ddnsBaseUrl: env("HUB_DDNS_BASE_URL", "https://www.duckdns.org"),
   ddnsIntervalMinutes: Number(env("HUB_DDNS_INTERVAL_MINUTES", "15")),
+
+  // Stato Internet (§30): endpoint leggero usato solo per verificare la
+  // raggiungibilità generica, non un servizio applicativo specifico —
+  // stesso tipo di endpoint "generate_204" usato dai sistemi operativi per
+  // il controllo di connettività.
+  internetCheckUrl: env("HUB_INTERNET_CHECK_URL", "https://www.gstatic.com/generate_204"),
+  internetCheckTimeoutMs: Number(env("HUB_INTERNET_CHECK_TIMEOUT_MS", "3000")),
+
+  // Riavvio automatico dei servizi interni (§31): Jellyfin/Immich girano in
+  // Docker separati dall'Hub API (che è sull'host, vedi §2/§3) — il
+  // riavvio passa quindi da `docker restart <container>`, non da systemd.
+  // Richiede che l'utente di sistema dell'Hub API possa parlare col
+  // demone Docker (es. gruppo "docker") — degrado esplicito se non può.
+  dockerPath: env("HUB_DOCKER_PATH", "docker"),
+  jellyfinContainer: env("HUB_JELLYFIN_CONTAINER", "jellyfin"),
+  immichContainer: env("HUB_IMMICH_CONTAINER", "immich-server"),
+  watchdogIntervalSeconds: Number(env("HUB_WATCHDOG_INTERVAL_SECONDS", "60")),
+  watchdogFailuresBeforeRestart: Number(env("HUB_WATCHDOG_FAILURES_BEFORE_RESTART", "3")),
+  watchdogMaxRestartAttempts: Number(env("HUB_WATCHDOG_MAX_RESTART_ATTEMPTS", "3")),
+
+  // Spegnimento sicuro da Web App (§34). L'utente di sistema dell'Hub API
+  // (non root, §26) necessita di un permesso sudo mirato — vedi
+  // infra/systemd/homehub-shutdown-sudoers e README "Deploy".
+  shutdownCommand: env("HUB_SHUTDOWN_COMMAND", "sudo"),
+  shutdownArgsJson: env("HUB_SHUTDOWN_ARGS_JSON", JSON.stringify(["/sbin/shutdown", "-h", "now"])),
 };

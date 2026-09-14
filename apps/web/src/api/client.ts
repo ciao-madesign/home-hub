@@ -61,7 +61,18 @@ export interface SystemStatus {
   disk: { totalBytes: number | null; freeBytes: number | null; freePercent: number | null };
   temperatureCelsius: number | null;
   uptimeSeconds: number;
+  internet: { reachable: boolean };
   services: ServiceStatus[];
+  backup: { configured: boolean; lastStatus: string | null };
+  downloads: { active: number; errored: number };
+}
+
+export interface SystemEvent {
+  id: string;
+  level: "info" | "critical";
+  category: string;
+  message: string;
+  createdAt: string;
 }
 
 /** 1 secondo = 10.000.000 di tick (unità di misura usata da Jellyfin). */
@@ -433,6 +444,8 @@ export const api = {
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
 
   systemStatus: () => request<SystemStatus>("/system/status"),
+  listSystemEvents: (limit = 50) => request<{ events: SystemEvent[] }>(`/system/events?limit=${limit}`),
+  shutdownHost: () => request<{ ok: true }>("/system/shutdown", { method: "POST", body: JSON.stringify({ confirm: true }) }),
 
   listMovies: () => request<{ movies: MediaSummary[] }>("/movies"),
   getMovie: (id: string) =>

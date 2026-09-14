@@ -11,9 +11,11 @@ import {
   type LocalNetworkInfo,
   type Profile,
   type SessionEntry,
+  type SystemEvent,
   type WifiNetwork,
   type WifiStatus,
 } from "../api/client";
+import { Modal, modalButtonRowStyle, modalDangerButtonStyle, modalSecondaryButtonStyle } from "../components/Modal";
 
 function formatBytes(bytes: number | null): string {
   if (bytes === null) return "—";
@@ -324,6 +326,124 @@ function NetworkSection() {
   );
 }
 
+function eventTimestamp(sqliteTimestamp: string): string {
+  return new Date(`${sqliteTimestamp.replace(" ", "T")}Z`).toLocaleString("it-IT", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function NotificationsSection() {
+  const [events, setEvents] = useState<SystemEvent[] | null>(null);
+
+  useEffect(() => {
+    api.listSystemEvents(20).then((r) => setEvents(r.events)).catch(() => {});
+  }, []);
+
+  const critical = events?.filter((e) => e.level === "critical") ?? [];
+  if (critical.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Notifiche</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {critical.map((e) => (
+          <div
+            key={e.id}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--status-problem)",
+              background: "rgba(239, 68, 68, 0.08)",
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: "var(--status-problem)" }}>{e.message}</span>
+            <span style={{ color: "var(--text-faint)", marginLeft: 8, fontSize: 12 }}>
+              {eventTimestamp(e.createdAt)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PowerSection() {
+  const { user } = useProfile();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (user?.role !== "admin") return null;
+
+  async function handleShutdown() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.shutdownHost();
+      setModalOpen(false);
+    } catch {
+      setError("Spegnimento non riuscito.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Alimentazione</h2>
+      <div
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+          background: "var(--bg-card)",
+        }}
+      >
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-muted)" }}>
+          Spegnimento sicuro del sistema (§34). Per riaccenderlo servirà il pulsante fisico sul Wyse.
+        </p>
+        <button
+          onClick={() => setModalOpen(true)}
+          style={{
+            padding: "9px 16px",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--status-problem)",
+            background: "transparent",
+            color: "var(--status-problem)",
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          Spegni l'Hub…
+        </button>
+      </div>
+
+      {modalOpen && (
+        <Modal title="Confermi lo spegnimento?" onClose={() => setModalOpen(false)}>
+          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 6px" }}>
+            L'Hub e tutti i servizi (Film, Serie, Foto, Download…) diventeranno irraggiungibili finché non lo
+            riaccendi fisicamente.
+          </p>
+          {error && <p style={{ fontSize: 13, color: "var(--status-problem)" }}>{error}</p>}
+          <div style={modalButtonRowStyle}>
+            <button style={modalSecondaryButtonStyle} onClick={() => setModalOpen(false)}>
+              Annulla
+            </button>
+            <button style={modalDangerButtonStyle} onClick={handleShutdown} disabled={busy}>
+              Spegni
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 const inputStyleLocal: React.CSSProperties = {
   padding: "9px 12px",
   borderRadius: "var(--radius-sm)",
@@ -622,7 +742,13 @@ export function System() {
           label="Uptime"
           value={status ? `${Math.floor(status.uptimeSeconds / 3600)} h` : "—"}
         />
+        <MetricCard
+          label="Internet"
+          value={status ? (status.internet.reachable ? "Connesso" : "Non raggiungibile") : "—"}
+        />
       </div>
+
+      <NotificationsSection />
 
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Servizi</h2>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -655,6 +781,7 @@ export function System() {
         <NetworkSection />
         <AccountSection />
         <SessionsSection />
+        <PowerSection />
       </div>
     </div>
   );

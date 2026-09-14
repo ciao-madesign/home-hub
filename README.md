@@ -129,6 +129,16 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   automatico (va aperto a mano sul router, vedi "Deploy" sotto), tunnel
   di fallback, VPN personale (ultima funzione pianificata) — vedi
   `docs/SPECIFICHE.md`.
+- **Sistema — monitoraggio completo** (§30/§31/§34, Fase 10): oltre a
+  CPU/RAM/temperatura/storage/servizi, ora anche stato Internet (non
+  influenza l'indicatore generale: offline è un modo d'uso supportato,
+  §27), riepilogo backup/download. Riavvio automatico di Jellyfin/Immich
+  quando non rispondono (`docker restart`, tentativi limitati, poi una
+  notifica critica visibile in Sistema — §31). Spegnimento sicuro da Web
+  App per gli admin (§34), con permesso sudo mirato a un solo comando.
+  **Non implementato**: standby/wake automatico, aggiornamenti
+  dell'Hub con autorizzazione dalla Web App (§33) — per ora si
+  aggiorna da riga di comando, vedi "Aggiornamenti" sotto.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -152,11 +162,16 @@ NetworkManager/hardware Wi-Fi in questo ambiente). DDNS verificato
 contro uno stub fedele all'API DuckDNS, non contro il servizio reale.
 Caddy/HTTPS automatico non verificabile affatto in questo ambiente
 (serve un dominio pubblico reale e la porta 443 aperta su un router
-reale).
+reale). Riavvio automatico dei servizi verificato per davvero contro
+comandi `docker`/`sudo` fittizi (forma esatta dell'invocazione confermata:
+`docker restart <container>`, `sudo /sbin/shutdown -h now`), non contro
+un demone Docker/sistema reale (nessuno dei due presente in questo
+ambiente sandbox).
 
-Non ancora implementato: port forwarding automatico, tunnel di
-fallback, VPN personale, selezione traccia audio multipla, ricerca
-globale full-text, priorità dinamica di download/backup basata
+Non ancora implementato: standby/wake automatico, aggiornamenti
+dell'Hub con autorizzazione dalla Web App, port forwarding automatico,
+tunnel di fallback, VPN personale, selezione traccia audio multipla,
+ricerca globale full-text, priorità dinamica di download/backup basata
 sull'attività di streaming in corso (attualmente un limite di banda
 statico per entrambi), avvio sessioni Sunshine/Moonlight, libreria
 virtuale multi-disco con distribuzione automatica dei nuovi file. Vedi
@@ -221,6 +236,16 @@ sudo apt install smartmontools   # SMART, §29 — opzionale, senza: sezione "no
 
 sudo useradd --system --home /opt/home-hub --shell /usr/sbin/nologin homehub
 sudo chown -R homehub:homehub /opt/home-hub
+
+# Riavvio automatico di Jellyfin/Immich quando non rispondono (§31):
+# l'Hub API deve poter parlare col demone Docker.
+sudo usermod -aG docker homehub
+
+# Spegnimento sicuro da Web App (§34): permesso sudo mirato a un solo
+# comando, non un sudo generico (§26, least privilege).
+sudo cp /opt/home-hub/infra/systemd/homehub-shutdown-sudoers /etc/sudoers.d/homehub-shutdown
+sudo chmod 440 /etc/sudoers.d/homehub-shutdown
+sudo visudo -c
 
 sudo cp /opt/home-hub/infra/systemd/home-hub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload

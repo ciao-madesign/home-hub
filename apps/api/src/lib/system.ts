@@ -1,6 +1,8 @@
 import os from "node:os";
 import fs from "node:fs/promises";
 import { config } from "../config.js";
+import { getLatestRun as getLatestBackupRun } from "./storage/backup.js";
+import { listDownloads } from "./downloads/manager.js";
 
 export type SystemLevel = "NORMAL" | "ATTENTION" | "PROBLEM";
 
@@ -17,7 +19,10 @@ export interface SystemStatusReport {
   disk: { totalBytes: number | null; freeBytes: number | null; freePercent: number | null };
   temperatureCelsius: number | null;
   uptimeSeconds: number;
+  internet: { reachable: boolean };
   services: ServiceStatus[];
+  backup: { configured: boolean; lastStatus: string | null };
+  downloads: { active: number; errored: number };
 }
 
 async function readCpuTemperature(): Promise<number | null> {
@@ -48,7 +53,7 @@ async function readDiskUsage(): Promise<{
   }
 }
 
-async function checkService(name: string, url: string | null): Promise<ServiceStatus> {
+export async function checkService(name: string, url: string | null): Promise<ServiceStatus> {
   if (!url) return { name, configured: false, reachable: null };
   try {
     const controller = new AbortController();
@@ -61,16 +66,30 @@ async function checkService(name: string, url: string | null): Promise<ServiceSt
   }
 }
 
+/** Stato Internet (§30): raggiungibilità generica, non di un servizio specifico. */
+async function checkInternet(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.internetCheckTimeoutMs);
+    const res = await fetch(config.internetCheckUrl, { signal: controller.signal, method: "HEAD" });
+    clearTimeout(timeout);
+    return res.ok || res.status === 204;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Aggrega lo stato del sistema secondo §30: indicatore NORMAL/ATTENTION/PROBLEM
- * basato su CPU, RAM, temperatura, storage e servizi interni.
+ * basato su CPU, RAM, temperatura, storage, servizi interni, Internet e backup.
  */
 export async function getSystemStatus(): Promise<SystemStatusReport> {
-  const [temperatureCelsius, disk, jellyfin, immich] = await Promise.all([
+  const [temperatureCelsius, disk, jellyfin, immich, internetReachable] = await Promise.all([
     readCpuTemperature(),
     readDiskUsage(),
     checkService("jellyfin", config.jellyfinUrl),
     checkService("immich", config.immichUrl),
+    checkInternet(),
   ]);
 
   const totalMem = os.totalmem();
@@ -80,6 +99,18 @@ export async function getSystemStatus(): Promise<SystemStatusReport> {
 
   const services = [jellyfin, immich];
 
+  const latestBackup = getLatestBackupRun();
+  const backup = {
+    configured: config.backupRoot !== null,
+    lastStatus: latestBackup?.status ?? null,
+  };
+
+  const allDownloads = listDownloads();
+  const downloads = {
+    active: allDownloads.filter((d) => d.status === "downloading" || d.status === "queued").length,
+    errored: allDownloads.filter((d) => d.status === "error").length,
+  };
+
   let level: SystemLevel = "NORMAL";
 
   const diskCritical =
@@ -87,8 +118,15 @@ export async function getSystemStatus(): Promise<SystemStatusReport> {
   const serviceDown = services.some((s) => s.configured && s.reachable === false);
   const hot = temperatureCelsius !== null && temperatureCelsius >= 80;
   const veryHot = temperatureCelsius !== null && temperatureCelsius >= 90;
+  // Un backup non configurato è una scelta legittima (§5: "previsto come
+  // espansione"), non un problema — solo un backup configurato che fallisce
+  // davvero segnala qualcosa che merita attenzione. L'assenza di Internet è
+  // trattata allo stesso modo (§27: l'Hub è pienamente utilizzabile offline,
+  // non è "un problema" del sistema) — resta visibile come campo a sé,
+  // senza alzare l'indicatore generale.
+  const backupFailed = backup.configured && (backup.lastStatus === "failed" || backup.lastStatus === "interrupted");
 
-  if (diskCritical || serviceDown || hot) level = "ATTENTION";
+  if (diskCritical || serviceDown || hot || backupFailed) level = "ATTENTION";
   if (veryHot) level = "PROBLEM";
 
   return {
@@ -98,6 +136,9 @@ export async function getSystemStatus(): Promise<SystemStatusReport> {
     disk,
     temperatureCelsius,
     uptimeSeconds: os.uptime(),
+    internet: { reachable: internetReachable },
     services,
+    backup,
+    downloads,
   };
 }
