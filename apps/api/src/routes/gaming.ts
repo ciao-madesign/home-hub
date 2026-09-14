@@ -22,6 +22,7 @@ import {
 import { scanForNewGames, gamesRoot } from "../lib/gaming/scan.js";
 import { isRunning, launchLocal, stopLocal, EmulatorError } from "../lib/gaming/emulator.js";
 import { probeTcp } from "../lib/gaming/machineStatus.js";
+import { resolveExecutionMachine } from "../lib/gaming/autoSelect.js";
 import { sendWakeOnLan, WolError } from "../lib/gaming/wol.js";
 import { backupSave } from "../lib/gaming/saveBackup.js";
 import { assertSafeRelativePath, UnsafePathError } from "../lib/pathSafety.js";
@@ -181,8 +182,11 @@ export async function gamingRoutes(app: FastifyInstance) {
     const game = getGame(id);
     if (!game) return reply.code(404).send({ error: "not_found" });
 
-    const machineId = game.execution_machine_id ?? "local";
-    const machine = getMachine(machineId);
+    // Assegnazione esplicita dell'utente vince sempre; senza, l'Hub sceglie
+    // da sé in base alla piattaforma e alla disponibilità (§10, autoSelect.ts).
+    const machine = game.execution_machine_id
+      ? getMachine(game.execution_machine_id)
+      : await resolveExecutionMachine(game.platform);
     if (!machine) return reply.code(409).send({ error: "conflict", message: "Macchina di esecuzione non configurata" });
 
     try {
@@ -192,7 +196,7 @@ export async function gamingRoutes(app: FastifyInstance) {
         }
         const romAbs = path.join(gamesRoot(), ...assertSafeRelativePath(game.rom_path));
         launchLocal(id, game.platform, romAbs);
-        return { mode: "local", started: true };
+        return { mode: "local", started: true, machineId: machine.id, machineName: machine.name };
       }
 
       // PC remoto (§10 appendice): l'Hub sveglia e verifica lo stato; l'avvio
@@ -202,13 +206,15 @@ export async function gamingRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: "conflict", message: "Macchina remota non configurata (host/porta mancanti)" });
       }
       const online = await probeTcp(machine.host, machine.port);
-      if (online) return { mode: "remote", machineOnline: true, wolSent: false };
+      if (online) {
+        return { mode: "remote", machineOnline: true, wolSent: false, machineId: machine.id, machineName: machine.name };
+      }
 
       if (!machine.mac_address) {
         return reply.code(409).send({ error: "conflict", message: "MAC address mancante: impossibile inviare Wake-on-LAN" });
       }
       await sendWakeOnLan(machine.mac_address);
-      return { mode: "remote", machineOnline: false, wolSent: true };
+      return { mode: "remote", machineOnline: false, wolSent: true, machineId: machine.id, machineName: machine.name };
     } catch (err) {
       if (err instanceof UnsafePathError) return reply.code(400).send({ error: "invalid_path" });
       if (handleGamingError(err, reply)) return;

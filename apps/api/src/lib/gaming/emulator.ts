@@ -34,6 +34,11 @@ function getEmulatorMap(): Record<string, EmulatorConfig> {
   }
 }
 
+/** Usato dalla selezione automatica della macchina (§10, autoSelect.ts): una piattaforma senza emulatore locale configurato va per forza su una macchina remota. */
+export function isPlatformLocallyEmulatable(platform: string): boolean {
+  return platform in getEmulatorMap();
+}
+
 const runningProcesses = new Map<string, ChildProcess>();
 
 export function isRunning(gameId: string): boolean {
