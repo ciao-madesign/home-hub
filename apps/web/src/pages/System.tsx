@@ -12,6 +12,10 @@ import {
   type Profile,
   type SessionEntry,
   type SystemEvent,
+  type VpnPeer,
+  type VpnPeerWithUser,
+  type VpnProfile,
+  type VpnStatus,
   type WifiNetwork,
   type WifiStatus,
 } from "../api/client";
@@ -239,6 +243,217 @@ function DdnsPanel() {
   );
 }
 
+const vpnPeerRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "10px 14px",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border)",
+  background: "var(--bg-card)",
+  fontSize: 13,
+  marginBottom: 6,
+};
+
+const PROFILE_LABEL: Record<VpnProfile, string> = {
+  home: "Solo Hub (uso quotidiano)",
+  full: "Tunnel completo (esci con l'IP di casa)",
+};
+
+/**
+ * VPN personale WireGuard (§2, ultima funzione della Fase 9). La chiave
+ * privata non passa mai da qui: il client WireGuard dell'utente la genera
+ * da solo creando un nuovo tunnel vuoto, qui si incolla solo la pubblica
+ * mostrata — l'Hub restituisce i parametri restanti (endpoint, indirizzo
+ * assegnato, AllowedIPs) da completare nel client.
+ */
+function VpnPanel() {
+  const { user } = useProfile();
+  const [status, setStatus] = useState<VpnStatus | null>(null);
+  const [peers, setPeers] = useState<VpnPeer[] | null>(null);
+  const [allPeers, setAllPeers] = useState<VpnPeerWithUser[] | null>(null);
+  const [profile, setProfile] = useState<VpnProfile>("home");
+  const [label, setLabel] = useState("");
+  const [publicKey, setPublicKey] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [newPeer, setNewPeer] = useState<VpnPeer | null>(null);
+
+  const load = useCallback(() => {
+    api.getVpnStatus().then(setStatus).catch(() => setStatus(null));
+    api
+      .listVpnPeers()
+      .then((r) => setPeers(r.peers))
+      .catch(() => {});
+    if (user?.role === "admin") {
+      api
+        .listAllVpnPeers()
+        .then((r) => setAllPeers(r.peers))
+        .catch(() => {});
+    }
+  }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await api.createVpnPeer({ profile, label, publicKey });
+      setNewPeer(res.peer);
+      setLabel("");
+      setPublicKey("");
+      load();
+    } catch (err) {
+      setMessage(err instanceof ApiError ? String(err.body ?? err.message) : "Creazione non riuscita.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    await api.deleteVpnPeer(id);
+    if (newPeer?.id === id) setNewPeer(null);
+    load();
+  }
+
+  if (!status?.configured) {
+    return (
+      <p style={{ fontSize: 13, color: "var(--text-faint)" }}>
+        VPN non configurato (HUB_VPN_ENABLED) — serve solo per uscire su Internet con l'IP di casa da remoto,
+        l'accesso remoto alla Web App non ne ha bisogno.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 10px" }}>
+        Interfaccia: {status.interfaceUp ? "attiva" : "non attiva"}
+        {!status.commandsAvailable && " (strumenti WireGuard non trovati su questo sistema)"}
+        {status.serverPublicKey && (
+          <>
+            <br />
+            Chiave pubblica del server:{" "}
+            <code style={{ fontSize: 11, wordBreak: "break-all" }}>{status.serverPublicKey}</code>
+          </>
+        )}
+      </p>
+
+      {peers?.map((p) => (
+        <div key={p.id} style={vpnPeerRowStyle}>
+          <span>
+            {p.label} — {PROFILE_LABEL[p.profile]} — {p.address}
+            {p.connected && <span style={{ color: "var(--status-normal, #22c55e)" }}> ● connesso</span>}
+          </span>
+          <button
+            onClick={() => handleDelete(p.id)}
+            style={{ background: "none", border: "none", color: "var(--status-problem)", cursor: "pointer", fontSize: 12 }}
+          >
+            Revoca
+          </button>
+        </div>
+      ))}
+      {peers?.length === 0 && <p style={{ fontSize: 13, color: "var(--text-faint)" }}>Nessun dispositivo collegato.</p>}
+
+      <form
+        onSubmit={handleCreate}
+        style={{
+          marginTop: 14,
+          padding: 14,
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--border)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          maxWidth: 420,
+        }}
+      >
+        <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600 }}>Aggiungi un dispositivo</p>
+        <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-faint)" }}>
+          Crea un nuovo tunnel vuoto nel tuo client WireGuard (genera da solo una coppia di chiavi, mai vista
+          dall'Hub) e incolla qui la chiave pubblica che ti mostra.
+        </p>
+        <select value={profile} onChange={(e) => setProfile(e.target.value as VpnProfile)} style={inputStyleLocal}>
+          <option value="home">{PROFILE_LABEL.home}</option>
+          <option value="full">{PROFILE_LABEL.full}</option>
+        </select>
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Nome dispositivo (es. Telefono)"
+          style={inputStyleLocal}
+        />
+        <input
+          value={publicKey}
+          onChange={(e) => setPublicKey(e.target.value)}
+          placeholder="Chiave pubblica WireGuard"
+          style={{ ...inputStyleLocal, fontFamily: "monospace" }}
+        />
+        {message && <p style={{ fontSize: 12, color: "var(--status-problem)", margin: 0 }}>{message}</p>}
+        <button
+          type="submit"
+          disabled={busy || !label || !publicKey}
+          style={{ ...secondaryButtonStyleLocal, alignSelf: "flex-start" }}
+        >
+          {busy ? "Creazione…" : "Aggiungi"}
+        </button>
+      </form>
+
+      {newPeer && (
+        <Modal title="Configura il tuo client" onClose={() => setNewPeer(null)}>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 8px" }}>
+            Incolla questi valori nel tuo client, insieme alla chiave privata che hai già generato lì (non viene
+            mai condivisa con l'Hub):
+          </p>
+          <pre
+            style={{
+              fontSize: 12,
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              padding: 12,
+              overflowX: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+            }}
+          >
+            {`[Interface]\nAddress = ${newPeer.address}/32\n\n[Peer]\nPublicKey = ${status.serverPublicKey}\nEndpoint = ${status.endpointHost ?? "<configura HUB_VPN_ENDPOINT_HOST>"}:${status.listenPort}\nAllowedIPs = ${newPeer.allowedIps}\nPersistentKeepalive = 25`}
+          </pre>
+          <div style={modalButtonRowStyle}>
+            <button style={modalSecondaryButtonStyle} onClick={() => setNewPeer(null)}>
+              Chiudi
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {user?.role === "admin" && allPeers && allPeers.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--text-muted)" }}>Tutti i dispositivi (tutti gli utenti)</p>
+          {allPeers.map((p) => (
+            <div key={p.id} style={vpnPeerRowStyle}>
+              <span>
+                <strong>{p.displayName}</strong> — {p.label} — {PROFILE_LABEL[p.profile]} — {p.address}
+                {p.connected && <span style={{ color: "var(--status-normal, #22c55e)" }}> ● connesso</span>}
+              </span>
+              <button
+                onClick={() => handleDelete(p.id)}
+                style={{ background: "none", border: "none", color: "var(--status-problem)", cursor: "pointer", fontSize: 12 }}
+              >
+                Revoca
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const secondaryButtonStyleLocal: React.CSSProperties = {
   padding: "8px 14px",
   borderRadius: "var(--radius-sm)",
@@ -307,6 +522,21 @@ function NetworkSection() {
           </div>
         </div>
       )}
+
+      {/* VPN (§2): a differenza di Wi-Fi/DDNS non è admin-only — ogni
+          utente gestisce i propri dispositivi, come per le sessioni. */}
+      <div
+        style={{
+          marginTop: 14,
+          padding: 16,
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+          background: "var(--bg-card)",
+        }}
+      >
+        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>VPN personale</p>
+        <VpnPanel />
+      </div>
     </div>
   );
 }

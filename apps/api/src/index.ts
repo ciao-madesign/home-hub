@@ -26,6 +26,8 @@ import { bookmarksRoutes } from "./routes/bookmarks.js";
 import { searchRoutes } from "./routes/search.js";
 import { bootstrapDdnsUpdater } from "./lib/network/ddns.js";
 import { bootstrapServiceWatchdog } from "./lib/serviceWatchdog.js";
+import { vpnRoutes } from "./routes/vpn.js";
+import { bootstrapVpn } from "./lib/network/vpn.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -60,11 +62,13 @@ async function main() {
   await app.register(settingsRoutes);
   await app.register(bookmarksRoutes);
   await app.register(searchRoutes);
+  await app.register(vpnRoutes);
 
   bootstrapBackupScheduler();
   startMdnsAdvertising();
   bootstrapDdnsUpdater();
   bootstrapServiceWatchdog();
+  bootstrapVpn();
 
   await app.listen({ port: config.port, host: config.host });
 }

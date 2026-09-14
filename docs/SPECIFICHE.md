@@ -6,11 +6,13 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo Fase 10 (Sistema) ed Extra "Web" (collegamenti
-rapidi, fuori roadmap). Restano da fare, quando l'utente avrà l'hardware
-pronto: port forwarding/tunnel reale e VPN (Fase 9, rimandati in coda su
-richiesta dell'utente — l'ISP dell'utente, EOLO, è probabilmente dietro
-CGNAT, vedi §3), standby/wake e aggiornamenti autorizzati (Fase 10).
+Ultimo aggiornamento: dopo il VPN personale WireGuard (Fase 9, completa —
+codice e verifica limitata a quanto testabile senza hardware reale).
+Restano da fare, quando l'utente avrà l'hardware pronto: verifica reale
+del VPN (nessun modulo kernel WireGuard disponibile in questo ambiente),
+port forwarding/tunnel reale (Fase 9 — l'ISP dell'utente, EOLO, è
+probabilmente dietro CGNAT, vedi §3), standby/wake e aggiornamenti
+autorizzati (Fase 10), Fase 11 (test integrali su hardware reale).
 
 ---
 
@@ -225,13 +227,57 @@ assunzioni sulla subnet) — la barriera corretta, coerente con l'intero
 disegno del deploy (porta 80 mai esposta, solo la 443 verso Caddy), resta
 quella a livello di Caddy. Vedi anche l'avviso rafforzato in
 `infra/docker-compose.yml` e nel README "Deploy" §3.
-⬜ Da fare: port forwarding automatico (UPnP/NAT-PMP) — per ora
-documentato come passo manuale sul router (vedi README "Deploy");
-tunnel fallback per router che non supportano il port forwarding —
-**poi, per ultimo**, il VPN server personale (WireGuard, aggiunto allo
-scope su richiesta esplicita, vedi §2): è la parte più delicata dal
-punto di vista della sicurezza fatta finora, costruita a valle del
-resto della fase.
+🟡 Fatto (quarto blocco — VPN personale WireGuard, §2, ultima funzione
+della fase): ogni utente gestisce i propri "peer" (dispositivi) in
+self-service, un profilo per uso ("solo Hub", split-tunnel, o "tunnel
+completo", esce su Internet con l'IP di casa), un admin vede/revoca
+anche quelli altrui — stesso modello delle sessioni (§24). La chiave
+privata del client non è mai vista dall'Hub: si genera nel proprio
+client WireGuard (che lo fa già in automatico creando un nuovo tunnel
+vuoto), l'Hub riceve solo la pubblica e restituisce i parametri restanti
+(indirizzo assegnato, chiave pubblica del server, endpoint, AllowedIPs)
+da incollare nel client insieme alla chiave privata già generata lì.
+Isolamento (§2, vale per entrambi i profili): regole iptables in
+PostUp/PostDown dell'interfaccia bloccano ogni inoltro dal VPN verso
+qualunque interfaccia diversa da quella WAN configurata (mai il resto
+della rete di casa), permettendo solo il traffico verso l'host stesso
+(chain INPUT, mai bloccata) e l'uscita a Internet via NAT. Ogni modifica
+ai peer riscrive `wg0.conf` e riapplica l'interfaccia con un semplice
+down+up (mai un `wg syncconf` a caldo: più complesso da testare per un
+guadagno marginale con pochi peer e modifiche rare — coerente con la
+filosofia "lazy" già seguita altrove, es. purge cestino/download).
+Disattivato di default (`HUB_VPN_ENABLED=false`); richiede
+`wireguard-tools`, il modulo kernel WireGuard e `CAP_NET_ADMIN`/
+`CAP_NET_RAW` concessi al processo dell'Hub API via systemd
+(`AmbientCapabilities`, mai un sudo generico su `wg-quick`: il file di
+configurazione è scritto dall'Hub stesso, un sudo lì equivarrebbe a
+un'escalation a root se l'Hub fosse mai compromesso — vedi commento in
+`infra/systemd/home-hub-api.service`). Degrado esplicito (§31) quando
+`wg`/`wg-quick` mancano o l'interfaccia non può essere creata: i peer
+restano gestibili da DB/API, l'interfaccia resta "non attiva" finché non
+si applicano le condizioni reali (kernel + capability) sul Wyse.
+Verificato per davvero in questo ambiente (nessun modulo kernel
+WireGuard disponibile, quindi solo fino al limite del testabile senza
+di esso — stesso trattamento già riservato a Jellyfin/Immich reali):
+generazione della coppia di chiavi del server con `wg genkey`/`wg
+pubkey` veri, scrittura di `wg0.conf` con permessi 0600/0700 corretti,
+creazione di peer con chiavi pubbliche reali generate da `wg genkey |
+wg pubkey`, allocazione IP sequenziale nella subnet dedicata, rifiuto di
+chiavi duplicate/malformate, revoca con riscrittura del file di
+configurazione, vista admin di tutti i peer — tutto via curl. Flusso
+completo verificato anche in un browser reale (Playwright): pannello
+VPN nella pagina Sistema, creazione di un dispositivo, modale con i
+parametri di connessione (incluso l'Endpoint dedotto dal DDNS/variabile
+d'ambiente) generati correttamente.
+⬜ Non verificato in questo ambiente (nessun modulo kernel WireGuard,
+nessun router/linea reale): `wg-quick up` che porta davvero su
+l'interfaccia, le regole iptables di isolamento/NAT applicate a un
+traffico reale, un handshake WireGuard genuino da un client esterno,
+l'intero percorso "da fuori casa con l'IP di casa" — tutto da verificare
+al deploy sul Wyse, insieme a port forwarding automatico (UPnP/NAT-PMP,
+per ora manuale, vedi README "Deploy") e tunnel fallback per router
+senza port forwarding (non implementato, coerente con l'esclusione già
+nota per EOLO/CGNAT, §3).
 
 ### Fase 10 — Sistema
 🟡 Fatto: monitoraggio CPU/RAM/temperatura/storage/servizi, indicatore
@@ -440,6 +486,17 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
     collegamento end-to-end "da fuori" resteranno non validati fino al
     deploy sul Wyse (stesso trattamento già riservato a Jellyfin/Immich
     reali).
+  - **Chiarimento in fase di implementazione — AllowedIPs del profilo
+    "solo casa"**: la frase concordata "limitato a Hub/rete di casa"
+    poteva leggersi in due modi, in tensione con la regola di isolamento
+    sopra ("il peer raggiunge solo l'Hub... mai il resto della
+    rete/altri dispositivi di casa"). Risolto a favore dell'isolamento:
+    l'`AllowedIPs` del profilo "solo casa" è l'IP dell'Hub stesso (`/32`,
+    dedotto da `getLocalNetworkInfo()`), non l'intera subnet LAN — "rete
+    di casa" nella frase originale va letto come "l'Hub, che vive sulla
+    rete di casa", non "l'intera rete di casa". Le regole iptables lato
+    server bloccano comunque ogni altro inoltro anche per il profilo
+    "tunnel completo", indipendentemente da cosa dichiara il client.
 - **Fase 10 — Internet e backup "non configurato" non alzano
   l'indicatore generale**: `getSystemStatus()` calcola NORMAL/ATTENTION/
   PROBLEM da CPU/RAM/temperatura/storage/servizi come prima, ma
@@ -627,3 +684,15 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   nessuno dei due, vedi l'inizio di questo documento). Da verificare sul
   Wyse: che l'utente `homehub` sia effettivamente nel gruppo `docker` e
   che il file sudoers installato funzioni come previsto.
+- VPN personale WireGuard (`lib/network/vpn.ts`): nessun modulo kernel
+  WireGuard disponibile in questo ambiente sandbox, quindi `wg-quick up`
+  fallisce sempre qui (degrado esplicito verificato, §31) — verificato
+  per davvero solo quanto non richiede l'interfaccia realmente attiva:
+  generazione delle chiavi del server, scrittura/permessi di `wg0.conf`,
+  gestione peer (creazione con chiavi reali generate da `wg genkey | wg
+  pubkey`, allocazione IP, unicità, revoca) via API e in un browser
+  reale. Da verificare sul Wyse: `wg-quick up` che porta su l'interfaccia
+  per davvero, le regole iptables di isolamento/NAT contro traffico
+  reale, un handshake genuino da un client esterno, che
+  `AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW` nel service systemd sia
+  sufficiente senza root (vedi `infra/systemd/home-hub-api.service`).

@@ -453,6 +453,35 @@ export interface DdnsStatus {
   lastUpdatedAt: string | null;
 }
 
+export interface VpnStatus {
+  configured: boolean;
+  commandsAvailable: boolean;
+  interfaceUp: boolean;
+  serverPublicKey: string | null;
+  endpointHost: string | null;
+  listenPort: number;
+  subnetCidr: string;
+}
+
+export type VpnProfile = "home" | "full";
+
+export interface VpnPeer {
+  id: string;
+  label: string;
+  profile: VpnProfile;
+  publicKey: string;
+  address: string;
+  allowedIps: string;
+  createdAt: string;
+  connected: boolean;
+  lastHandshakeAt: string | null;
+}
+
+export interface VpnPeerWithUser extends VpnPeer {
+  username: string;
+  displayName: string;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -679,4 +708,11 @@ export const api = {
   deleteBookmark: (id: string) => request<{ ok: true }>(`/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   search: (q: string) => request<{ results: SearchResultItem[] }>(`/search?q=${encodeURIComponent(q)}`),
+
+  getVpnStatus: () => request<VpnStatus>("/vpn/status"),
+  listVpnPeers: () => request<{ peers: VpnPeer[] }>("/vpn/peers"),
+  listAllVpnPeers: () => request<{ peers: VpnPeerWithUser[] }>("/vpn/peers/all"),
+  createVpnPeer: (fields: { profile: VpnProfile; label: string; publicKey: string }) =>
+    request<{ peer: VpnPeer }>("/vpn/peers", { method: "POST", body: JSON.stringify(fields) }),
+  deleteVpnPeer: (id: string) => request<{ ok: true }>(`/vpn/peers/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

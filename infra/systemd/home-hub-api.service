@@ -26,5 +26,16 @@ Group=homehub
 # il percorso assoluto, o aggiungilo qui.
 # Environment=PATH=/usr/bin:/usr/local/bin:/opt/home-hub/.local/bin
 
+# VPN personale WireGuard (§2, solo se HUB_VPN_ENABLED=true): creare
+# l'interfaccia e le regole NAT/isolamento richiede privilegi di rete.
+# Concessi come capability mirate al processo (least privilege, §26),
+# MAI con un sudo generico o eseguendo l'intero servizio come root — a
+# differenza dello spegnimento (comando fisso, mai influenzabile
+# dall'esterno), qui il file wg0.conf è scritto dall'Hub stesso: un sudo
+# su wg-quick equivarrebbe a un'escalation a root se l'Hub fosse mai
+# compromesso, perché wg-quick esegue gli script PostUp/PostDown del
+# file che l'Hub controlla.
+# AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
 [Install]
 WantedBy=multi-user.target

@@ -132,8 +132,17 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   automatico via un servizio Caddy opzionale (Let's Encrypt), che non
   tocca l'accesso LAN esistente. **Non implementato**: port forwarding
   automatico (va aperto a mano sul router, vedi "Deploy" sotto), tunnel
-  di fallback, VPN personale (ultima funzione pianificata) — vedi
-  `docs/SPECIFICHE.md`.
+  di fallback — vedi `docs/SPECIFICHE.md`.
+- **Rete — VPN personale WireGuard** (§2, quarta e ultima parte della
+  Fase 9, disattivata di default): ogni utente gestisce i propri
+  dispositivi in self-service (un profilo "solo Hub" split-tunnel e uno
+  "tunnel completo" per uscire su Internet con l'IP di casa), un admin
+  vede/revoca anche quelli altrui. La chiave privata del client non
+  transita mai dall'Hub: si genera nel proprio client WireGuard, l'Hub
+  riceve solo la pubblica e restituisce i parametri restanti da
+  incollare nel client. Isolamento server-side via iptables: il tunnel
+  raggiunge solo l'Hub e l'uscita Internet, mai il resto della rete di
+  casa, per entrambi i profili. Vedi "Deploy" sotto per l'attivazione.
 - **Sistema — monitoraggio completo** (§30/§31/§34, Fase 10): oltre a
   CPU/RAM/temperatura/storage/servizi, ora anche stato Internet (non
   influenza l'indicatore generale: offline è un modo d'uso supportato,
@@ -181,18 +190,23 @@ reale). Riavvio automatico dei servizi verificato per davvero contro
 comandi `docker`/`sudo` fittizi (forma esatta dell'invocazione confermata:
 `docker restart <container>`, `sudo /sbin/shutdown -h now`), non contro
 un demone Docker/sistema reale (nessuno dei due presente in questo
-ambiente sandbox).
+ambiente sandbox). VPN personale WireGuard: nessun modulo kernel
+WireGuard disponibile in questo ambiente, quindi l'interfaccia non è mai
+realmente attiva qui (degrado esplicito verificato) — verificato per
+davvero tutto ciò che non lo richiede (chiavi del server, gestione peer
+con chiavi WireGuard reali, allocazione IP, revoca, sia via API sia in
+un browser reale); da verificare sul Wyse l'interfaccia realmente attiva,
+le regole di isolamento/NAT contro traffico vero e un handshake genuino.
 
 Non ancora implementato: standby/wake automatico, aggiornamenti
 dell'Hub con autorizzazione dalla Web App, port forwarding automatico,
-tunnel di fallback, VPN personale, ricerca globale su Foto/Musica
-(richiederebbe la ricerca "smart" di Immich, disattivata di default),
-priorità dinamica di download/backup basata
-sull'attività di streaming in corso (attualmente un limite di banda
-statico per entrambi), avvio sessioni Sunshine/Moonlight, libreria
-virtuale multi-disco con distribuzione automatica dei nuovi file. Vedi
-la roadmap completa e la checklist dettagliata in `docs/SPEC_V1.md`
-§38-39 e `docs/SPECIFICHE.md`.
+tunnel di fallback, ricerca globale su Foto/Musica (richiederebbe la
+ricerca "smart" di Immich, disattivata di default), priorità dinamica di
+download/backup basata sull'attività di streaming in corso (attualmente
+un limite di banda statico per entrambi), avvio sessioni
+Sunshine/Moonlight, libreria virtuale multi-disco con distribuzione
+automatica dei nuovi file. Vedi la roadmap completa e la checklist
+dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 
@@ -335,6 +349,39 @@ Per accedere all'Hub da fuori casa serve, in questo ordine:
    ```
    Da quel momento `https://<il-tuo-dominio>` è raggiungibile da
    Internet; l'accesso LAN su `HUB_WEB_PORT` non cambia.
+
+### 4. VPN personale WireGuard (opzionale, §2 in docs/SPECIFICHE.md)
+
+Da attivare solo dopo aver verificato che l'accesso remoto sopra
+funziona: la VPN serve per un caso diverso e più sensibile (uscire su
+Internet con l'IP di casa, es. per servizi italiani in geo-restrizione
+dall'estero), non per il normale accesso alla Web App da remoto.
+
+1. Installa `wireguard-tools` sul Wyse: `sudo apt install wireguard-tools`.
+2. Concedi al processo dell'Hub API i soli permessi di rete necessari
+   (mai un sudo generico, vedi il commento in
+   `infra/systemd/home-hub-api.service`): decommenta la riga
+   `AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW` nel file, poi
+   `sudo systemctl daemon-reload && sudo systemctl restart home-hub-api`.
+3. Imposta in `apps/api/.env`: `HUB_VPN_ENABLED=true`,
+   `HUB_VPN_WAN_INTERFACE` (verifica il nome reale con `ip route` — non
+   sempre `eth0`), e se non hai già DDNS configurato anche
+   `HUB_VPN_ENDPOINT_HOST` (il dominio o IP pubblico a cui i client si
+   collegheranno). Riavvia il servizio.
+4. Apri sul router la porta **UDP** `HUB_VPN_LISTEN_PORT` (default
+   51820) verso il Wyse — stessa avvertenza di sicurezza del punto 2
+   sopra: inoltra solo questa, mai altre porte.
+5. Da Sistema → VPN personale, ogni utente crea i propri dispositivi
+   (self-service): nel client WireGuard scelto (app ufficiale su
+   telefono/desktop, o `wg-quick` da riga di comando) crea un nuovo
+   tunnel vuoto — genera da solo una coppia di chiavi — copia la chiave
+   pubblica mostrata nella Web App, scegli il profilo ("solo Hub" per
+   l'uso quotidiano, "tunnel completo" per uscire con l'IP di casa) e
+   incolla nel client i parametri che l'Hub restituisce.
+
+**Se il tuo ISP usa CGNAT** (probabile con provider FWA come EOLO, vedi
+`docs/SPECIFICHE.md` §3): il port forwarding al punto 4 non funzionerà,
+serve un tunnel verso un servizio esterno (non ancora implementato).
 
 ### Aggiornamenti
 

@@ -147,4 +147,34 @@ export const config = {
   // infra/systemd/homehub-shutdown-sudoers e README "Deploy".
   shutdownCommand: env("HUB_SHUTDOWN_COMMAND", "sudo"),
   shutdownArgsJson: env("HUB_SHUTDOWN_ARGS_JSON", JSON.stringify(["/sbin/shutdown", "-h", "now"])),
+
+  // VPN personale (WireGuard) — ultima funzione della Fase 9, la più
+  // sensibile costruita finora (accesso di rete generico, non solo alle
+  // API dell'Hub). Disattivato di default: richiede `wg`/`wg-quick`,
+  // il modulo kernel WireGuard e CAP_NET_ADMIN/CAP_NET_RAW sull'host —
+  // nessuno dei tre disponibile in ambienti di sviluppo/container (§31,
+  // degrado esplicito a "non disponibile"). Design chiuso con l'utente,
+  // vedi docs/SPECIFICHE.md §2.
+  vpnEnabled: env("HUB_VPN_ENABLED", "false") === "true",
+  wgPath: env("HUB_WG_PATH", "wg"),
+  wgQuickPath: env("HUB_WG_QUICK_PATH", "wg-quick"),
+  // Nome interfaccia e percorso del file di configurazione wg-quick
+  // (il nome file, senza estensione, DEVE combaciare col nome interfaccia:
+  // wg-quick lo richiede). Nella stessa cartella viene salvata anche la
+  // chiave privata del server (mai quelle dei client, generate lato loro).
+  vpnInterface: env("HUB_VPN_INTERFACE", "wg0"),
+  vpnConfigDir: env("HUB_VPN_CONFIG_DIR", path.join(here, "..", "data", "vpn")),
+  vpnListenPort: Number(env("HUB_VPN_LISTEN_PORT", "51820")),
+  // Subnet dedicata al VPN (mai la stessa della LAN di casa): il server
+  // prende il primo indirizzo utilizzabile, i peer i successivi in ordine.
+  // Assume un /24 (semplificazione consapevole per V1 — coerente con
+  // l'uso "personale", pochi peer attesi).
+  vpnSubnetCidr: env("HUB_VPN_SUBNET_CIDR", "10.90.0.0/24"),
+  // Interfaccia con uscita Internet, per il NAT (necessario solo al
+  // profilo "tunnel completo", §2) — da adattare all'hardware reale.
+  vpnWanInterface: env("HUB_VPN_WAN_INTERFACE", "eth0"),
+  // Indirizzo pubblico da mostrare ai client per l'Endpoint WireGuard.
+  // Se non impostato, riusa il dominio DDNS già configurato (§23) quando
+  // presente — stesso indirizzo, motivo in più per condividerlo.
+  vpnEndpointHost: envOptional("HUB_VPN_ENDPOINT_HOST"),
 };
