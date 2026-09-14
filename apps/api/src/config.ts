@@ -7,6 +7,10 @@ function env(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
 }
 
+function envOptional(name: string): string | null {
+  return process.env[name] ?? null;
+}
+
 export const config = {
   port: Number(env("HUB_API_PORT", "4000")),
   host: env("HUB_API_HOST", "0.0.0.0"),
@@ -55,4 +59,43 @@ export const config = {
   // agli emulatori realmente installati sull'hardware di destinazione.
   machineProbeTimeoutMs: Number(env("HUB_MACHINE_PROBE_TIMEOUT_MS", "2000")),
   emulatorMapJson: process.env.HUB_EMULATOR_MAP_JSON ?? null,
+
+  // Storage e Backup (§4/§5/§29). Nessun default per HUB_BACKUP_ROOT: senza
+  // un secondo disco configurato il backup resta "non disponibile" (l'Hub
+  // continua a funzionare con un avviso, §5) — coerente con la spec, che
+  // descrive il disco di backup come "non acquistato/configurato
+  // inizialmente, previsto come espansione".
+  backupRoot: envOptional("HUB_BACKUP_ROOT"),
+  backupIntervalHours: Number(env("HUB_BACKUP_INTERVAL_HOURS", "24")),
+  // Priorità minima rispetto allo streaming, media rispetto ai download
+  // (§32): stessa semplificazione già adottata per il Download Manager
+  // (limite statico configurabile, non ancora legato dinamicamente
+  // all'attività di streaming in corso — vedi proposte aperte in
+  // docs/SPECIFICHE.md). 0 = nessun limite.
+  backupMaxRateKbps: Number(env("HUB_BACKUP_MAX_RATE_KBPS", "0")),
+  // Età massima (ore) oltre la quale un backup non è più considerato
+  // "recente e valido" ai fini della guardia per operazioni rischiose (§5).
+  backupRecentMaxAgeHours: Number(env("HUB_BACKUP_RECENT_MAX_AGE_HOURS", "48")),
+
+  // SMART (§29): richiede smartctl (smartmontools) e, per risalire dal
+  // mount point al device, findmnt — entrambi tipicamente assenti in
+  // ambienti di sviluppo/container: degrado esplicito a "non disponibile"
+  // quando mancano, mai un errore fatale (coerente con §31).
+  smartctlPath: env("HUB_SMARTCTL_PATH", "smartctl"),
+  findmntPath: env("HUB_FINDMNT_PATH", "findmnt"),
+
+  // Dischi aggiuntivi da monitorare oltre a dataRoot/backupRoot (§29),
+  // come JSON: [{"id":"...","label":"...","path":"..."}]
+  extraDisksJson: process.env.HUB_EXTRA_DISKS_JSON ?? null,
+
+  // Percorsi delle configurazioni Hub/Docker incluse nel backup (§5:
+  // "configurazioni Hub, configurazioni Docker"). Calcolati dalla posizione
+  // di questo modulo, non dalla cwd, per restare corretti sia in sviluppo
+  // (tsx da apps/api) sia in produzione (systemd, WorkingDirectory=apps/api).
+  hubConfigPaths: {
+    apiEnv: path.join(here, "..", ".env"),
+    infraEnv: path.join(here, "..", "..", "..", "infra", ".env"),
+    dockerCompose: path.join(here, "..", "..", "..", "infra", "docker-compose.yml"),
+    systemdUnit: path.join(here, "..", "..", "..", "infra", "systemd", "home-hub-api.service"),
+  },
 };

@@ -13,6 +13,7 @@ import { Music } from "./pages/Music";
 import { Games } from "./pages/Games";
 import { Files } from "./pages/Files";
 import { Downloads } from "./pages/Downloads";
+import { Storage } from "./pages/Storage";
 import { System } from "./pages/System";
 import { Search } from "./pages/Search";
 
@@ -51,6 +52,7 @@ function Gate() {
         <Route path="giochi" element={<Games />} />
         <Route path="file" element={<Files />} />
         <Route path="download" element={<Downloads />} />
+        <Route path="storage" element={<Storage />} />
         <Route path="sistema" element={<System />} />
         <Route path="cerca" element={<Search />} />
         <Route path="*" element={<Navigate to="/" replace />} />

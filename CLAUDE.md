@@ -101,6 +101,15 @@ Dispositivo utente → React Web App → Hub API / Orchestrator → Backend inte
   WebTorrent, orchestrata da `lib/downloads/manager.ts` (coda, priorità,
   pausa/ripresa/annulla, purge). Un nuovo motore di download deve
   implementare la stessa interfaccia.
+- **Copia di file "sicura" (backup e simili)**: `lib/storage/backup.ts:
+  copyVerified` è il pattern di riferimento per qualunque copia di file
+  che deve sopravvivere a un'interruzione a metà (crash, perdita di
+  alimentazione) — file temporaneo (`.part`) + verifica hash del
+  contenuto scritto + `rename` atomico solo se tutto torna, mai scrivere
+  direttamente sulla destinazione finale. La ripresa/skip dei file già
+  copiati si basa sul confronto dimensione+mtime (stile `rsync`, via
+  `fs.utimes` dopo la copia), non su un manifest separato da tenere
+  sincronizzato.
 - **Niente commenti superflui**: commenta solo il *perché* non ovvio
   (vincoli nascosti, workaround, comportamento sorprendente), mai il
   *cosa* (il codice ben nominato lo dice già). Guarda i commenti esistenti

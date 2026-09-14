@@ -16,6 +16,8 @@ import { photosRoutes } from "./routes/photos.js";
 import { filesRoutes } from "./routes/files.js";
 import { downloadsRoutes } from "./routes/downloads.js";
 import { gamingRoutes } from "./routes/gaming.js";
+import { storageRoutes } from "./routes/storage.js";
+import { bootstrapBackupScheduler } from "./lib/storage/backup.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -44,6 +46,9 @@ async function main() {
   await app.register(filesRoutes);
   await app.register(downloadsRoutes);
   await app.register(gamingRoutes);
+  await app.register(storageRoutes);
+
+  bootstrapBackupScheduler();
 
   await app.listen({ port: config.port, host: config.host });
 }

@@ -86,6 +86,20 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   serve decidere se farli girare sull'host o tramite un agente locale
   dedicato, dato che serve accesso al display fisico. Vedi
   `docs/SPECIFICHE.md` §3.
+- **Storage e Backup** (§4/§5/§29): pagina dedicata con visibilità dischi
+  (capacità, spazio libero, soglia critica, SMART con degrado esplicito
+  se `smartctl`/`findmnt` non disponibili) e backup automatico/manuale
+  ("Backup Now") di dati personali (File Manager, Foto, salvataggi
+  Giochi), database (snapshot consistente via `VACUUM INTO`) e
+  configurazioni Hub/Docker. Copia con limite di banda, scrittura
+  atomica e verifica di integrità per hash, skip dei file invariati
+  (ripresa naturale dopo un'interruzione), storico dei run. Ripristino
+  di base da disco di backup verso il disco dati, dietro conferma
+  esplicita. **Non implementato**: libreria virtuale multi-disco con
+  distribuzione automatica dei nuovi file (File Manager/Gaming/Download
+  Manager assumono ancora un unico disco dati), wizard di recovery
+  guidato su hardware nuovo, riapplicazione automatica delle
+  configurazioni Hub/Docker ripristinate su un sistema live.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -97,14 +111,19 @@ Download Manager e Gaming, essendo codice proprietario (oltre a yt-dlp e
 WebTorrent, entrambi verificati direttamente), sono stati invece validati
 contro un filesystem reale e, per i torrent, un vero scambio peer-to-peer
 locale. Wake-on-LAN verificato sul formato del pacchetto, non contro un
-PC reale (nessun target disponibile in questo ambiente).
+PC reale (nessun target disponibile in questo ambiente). Storage/Backup
+validato a fondo su filesystem reale (copia con verifica di integrità,
+skip incrementale, ripristino con recupero effettivo del contenuto); SMART
+verificato solo nel percorso di degrado (nessun device reale con
+`smartctl` disponibile in questo ambiente).
 
-Non ancora implementato: Backup, accesso remoto/DDNS/HTTPS, wizard di
-primo avvio, selezione traccia audio multipla, ricerca globale
-full-text, priorità dinamica dei download basata sull'attività di
-streaming in corso (attualmente un limite di banda statico), avvio
-sessioni Sunshine/Moonlight. Vedi la roadmap completa e la checklist
-dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
+Non ancora implementato: accesso remoto/DDNS/HTTPS, wizard di primo
+avvio, selezione traccia audio multipla, ricerca globale full-text,
+priorità dinamica di download/backup basata sull'attività di streaming
+in corso (attualmente un limite di banda statico per entrambi), avvio
+sessioni Sunshine/Moonlight, libreria virtuale multi-disco con
+distribuzione automatica dei nuovi file. Vedi la roadmap completa e la
+checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 
@@ -156,6 +175,10 @@ npm run build -w apps/api
 cd apps/api
 cp .env.example .env   # imposta almeno HUB_DATA_ROOT assoluto, vedi commenti nel file
 pip install --user yt-dlp   # Download Manager, §12
+sudo apt install smartmontools   # SMART, §29 — opzionale, senza: sezione "non disponibile"
+# HUB_BACKUP_ROOT: imposta al mount point del disco di backup quando
+# disponibile (§5); senza, il backup resta "non disponibile" e l'Hub
+# continua a funzionare normalmente con un avviso.
 
 sudo useradd --system --home /opt/home-hub --shell /usr/sbin/nologin homehub
 sudo chown -R homehub:homehub /opt/home-hub

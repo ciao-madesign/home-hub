@@ -99,6 +99,14 @@ export const IconChevronsRight = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconHardDrive = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="2" y="9" width="20" height="10" rx="2" />
+    <path d="M2 13h20" />
+    <path d="M6 17h.01M10 17h4" />
+  </Icon>
+);
+
 export const IconLogOut = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4" />

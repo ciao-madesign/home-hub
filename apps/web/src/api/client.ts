@@ -316,6 +316,56 @@ async function uploadGameCover(gameId: string, file: File): Promise<{ game: Game
   return body;
 }
 
+export interface SmartStatus {
+  available: boolean;
+  health: "passed" | "failed" | "unknown";
+  device: string | null;
+}
+
+export interface DiskInfo {
+  id: string;
+  label: string;
+  path: string;
+  connected: boolean;
+  totalBytes: number | null;
+  freeBytes: number | null;
+  freePercent: number | null;
+  critical: boolean;
+  smart: SmartStatus | null;
+}
+
+export type BackupTrigger = "auto" | "manual";
+export type BackupRunStatus = "running" | "completed" | "completed_with_errors" | "interrupted" | "failed";
+
+export interface BackupRun {
+  id: string;
+  trigger: BackupTrigger;
+  status: BackupRunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  filesTotal: number;
+  filesCopied: number;
+  filesSkipped: number;
+  filesFailed: number;
+  bytesCopied: number;
+  errorMessage: string | null;
+}
+
+export interface BackupStatus {
+  configured: boolean;
+  running: boolean;
+  hasRecentValidBackup: boolean;
+  latestRun: BackupRun | null;
+}
+
+export interface RestoreSummary {
+  filesTotal: number;
+  filesRestored: number;
+  filesSkipped: number;
+  filesFailed: number;
+  databaseRestored: boolean;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -474,4 +524,14 @@ export const api = {
   deleteMachine: (id: string) => request<{ ok: true }>(`/machines/${encodeURIComponent(id)}`, { method: "DELETE" }),
   wakeMachine: (id: string) => request<{ ok: true }>(`/machines/${encodeURIComponent(id)}/wake`, { method: "POST" }),
   getMachineStatus: (id: string) => request<{ online: boolean }>(`/machines/${encodeURIComponent(id)}/status`),
+
+  listDisks: () => request<{ disks: DiskInfo[] }>("/storage/disks"),
+  getBackupStatus: () => request<BackupStatus>("/backup/status"),
+  listBackupRuns: (limit = 20) => request<{ runs: BackupRun[] }>(`/backup/runs?limit=${limit}`),
+  runBackupNow: () => request<{ run: BackupRun }>("/backup/run", { method: "POST" }),
+  restoreBackup: () =>
+    request<{ summary: RestoreSummary; note: string }>("/backup/restore", {
+      method: "POST",
+      body: JSON.stringify({ confirm: true }),
+    }),
 };

@@ -6,9 +6,9 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo Fase 7 (Gaming, parte 1 — catalogo,
-importazione, esecuzione locale, macchine remote), prima di Fase 8
-(Storage e Backup).
+Ultimo aggiornamento: dopo Fase 8 (Storage e Backup — dischi/SMART,
+backup automatico/manuale, ripristino base), prima di Fase 9 (Rete e
+accesso remoto).
 
 ---
 
@@ -87,11 +87,45 @@ default (RetroArch, non verificata contro un'installazione reale).
 Deciso: l'Hub API gira sull'host (systemd), non in Docker — vedi §2.
 
 ### Fase 8 — Storage e Backup
-⬜ Non iniziata. Il monitoraggio storage di base (spazio libero, soglia
-critica 10%) esiste nella pagina Sistema (§30) ma manca: SMART,
-libreria virtuale multi-disco, rilevamento dischi, gestione disco
-scollegato, backup automatico/manuale, ripristino incrementale, backup
-di database/configurazione, recovery su nuovo hardware.
+🟡 Fatto: rilevamento dischi (§29) sui mount point configurati
+(HUB_DATA_ROOT/HUB_BACKUP_ROOT + eventuali extra via
+HUB_EXTRA_DISKS_JSON) con capacità/spazio libero/soglia critica 10%,
+stato connesso/non disponibile; SMART via `smartctl -H -j` risalendo dal
+mount point al device con `findmnt`, degrado esplicito a "non
+disponibile" quando gli strumenti mancano (§31). Backup automatico
+(intervallo configurabile, scheduler lazy via `setInterval` — stesso
+pattern già in uso per cestino/download) e manuale ("Backup Now"),
+comprende dati personali (Files/, Photos/, Games/.saves/), database
+(snapshot consistente via `VACUUM INTO` + verifica `PRAGMA quick_check`)
+e configurazioni Hub/Docker (`apps/api/.env`, `infra/.env`,
+`infra/docker-compose.yml`, `infra/systemd/home-hub-api.service`).
+Copia con limite di banda (§32), scrittura atomica (file temporaneo +
+rename), verifica di integrità per hash ad ogni copia (§5), confronto
+dimensione/mtime per saltare i file invariati (ripresa incrementale
+naturale dopo un'interruzione, nessun bookkeeping separato necessario),
+file modificato durante la copia scartato e rimandato al run successivo.
+Storico dei run in DB (`backup_runs`), run rimasti "running" dopo un
+riavvio marcati "interrotto" all'avvio. Guardia riutilizzabile
+`hasRecentValidBackup()` per operazioni rischiose (§5) — non ancora
+collegata a un'operazione specifica, nessuna esiste ancora in V1 che lo
+richieda. Ripristino base (§35, passo "ripristino automatico") che
+ricopia dati + database dal disco di backup al disco dati, dietro
+conferma esplicita. Validato per davvero su filesystem reale: backup
+completo, run incrementale con skip dei file invariati, ricopia di un
+file modificato, cancellazione + ripristino con verifica del contenuto
+recuperato, tutto via curl; pagina Storage verificata in browser reale
+(Playwright) inclusi dischi/SMART/backup/modale di conferma ripristino.
+⬜ Non fatto: libreria virtuale multi-disco con distribuzione automatica
+dei nuovi file tra più dischi (§4) — File Manager/Games/Downloads
+assumono ancora un unico disco dati; wizard di recovery guidato completo
+su hardware nuovo (richiede hardware reale, fuori portata di questo
+ambiente); riscrittura automatica delle configurazioni Hub/Docker dal
+backup su un sistema live (le config vengono salvate nel backup come
+riferimento, non riapplicate automaticamente: toccare file di sistema
+live in modo automatico è stato giudicato troppo rischioso per V1);
+priorità dinamica del backup legata all'attività di streaming reale
+(stessa semplificazione già adottata per i download — limite di banda
+statico configurabile, vedi proposte aperte §3).
 
 ### Fase 9 — Rete e accesso remoto
 ⬜ Non iniziata. Discovery locale, `.local`, QR, setup Wi-Fi, DDNS,
@@ -167,6 +201,37 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   un percorso file/cartella configurato manualmente per ogni gioco
   (`save_path`) in `Games/.saves/<gameId>/<timestamp>/` — funziona con
   qualsiasi emulatore, a costo di dover impostare il percorso a mano.
+- **Backup — dati "personali" esclude le librerie multimediali**: §5
+  dice "dati personali", senza elencarli esplicitamente. Interpretato
+  come Files/ (File Manager), Photos/ (Immich) e Games/.saves/
+  (salvataggi) — non Media/Movies/Series/Music. Motivazione: sono
+  librerie multimediali sostituibili (rippate/scaricate di nuovo), non
+  dati unici dell'utente, e backuppare l'intera libreria video
+  renderebbe il backup enorme/lento senza il beneficio "dati che non si
+  possono recuperare altrove" che giustifica un backup dedicato.
+- **Backup — niente manifest separato per la ripresa incrementale**:
+  invece di un file di stato dedicato (es. JSON con hash/mtime per ogni
+  file già copiato), la ripresa/skip si basa sul confronto
+  dimensione+mtime tra sorgente e file già presente a destinazione
+  (stesso principio di `rsync`, con `fs.utimes` per allineare l'mtime del
+  file copiato a quello sorgente). Più semplice, nessuno stato da tenere
+  sincronizzato, e un run interrotto a metà lascia solo file `.part`
+  (mai un file finale corrotto, grazie a copia-poi-rename atomico) che
+  vengono ignorati/sovrascritti al run successivo.
+- **Backup del database — `VACUUM INTO` invece di fermare l'Hub**:
+  verificato che `node:sqlite` supporta `VACUUM INTO ?` con parametro
+  bindato (test empirico in questa sessione) — produce uno snapshot
+  consistente del DB live senza dover interrompere il servizio, poi
+  verificato con `PRAGMA quick_check` sul file risultante.
+- **Ripristino — le configurazioni Hub/Docker non vengono riapplicate
+  automaticamente**: il backup include `apps/api/.env`, `infra/.env`,
+  `infra/docker-compose.yml` e l'unit systemd come riferimento, ma il
+  ripristino (`POST /api/backup/restore`) li lascia dentro
+  `<backupRoot>/hub-config/` senza sovrascrivere i file live —
+  riapplicarli in automatico su un sistema in esecuzione (in particolare
+  l'unit systemd) è stato giudicato troppo rischioso per un'operazione
+  self-service in V1; vanno ricopiati a mano durante il recovery guidato
+  (§35).
 
 ## 3. Proposte aperte / da decidere con l'utente
 
@@ -225,6 +290,21 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   Avviare davvero un'app/gioco via Sunshine richiede implementare il suo
   flusso di pairing (PIN + certificati TLS client) — scope non banale,
   volutamente rimandato.
+- **Priorità risorse dinamica per il backup**: stessa limitazione già
+  nota per i download (§32) — `HUB_BACKUP_MAX_RATE_KBPS` è un limite di
+  banda statico, non legato in tempo reale a una sessione di streaming
+  Jellyfin attiva. Andrebbe risolta insieme alla proposta analoga sui
+  download, con la stessa fonte di verità (endpoint `/Sessions` di
+  Jellyfin).
+- **Libreria virtuale multi-disco**: §4 descrive una singola libreria
+  virtuale che distribuisce automaticamente i nuovi file tra più dischi
+  quando disponibili. Fase 8 implementa solo la *visibilità* di più
+  dischi (capacità, SMART, stato) — File Manager, Gaming e Download
+  Manager continuano ad assumere un unico disco dati
+  (`HUB_DATA_ROOT`). Estendere la scrittura a più dischi è un refactor
+  più ampio, volutamente rimandato: richiede una strategia di
+  distribuzione (per spazio libero? per categoria?) su cui serve
+  allinearsi con l'utente prima di implementarla.
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 
@@ -245,3 +325,17 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   contro un PC reale che si accende davvero (nessun target disponibile
   in questo ambiente). Vedi anche la nota architetturale al punto
   precedente su dove devono girare fisicamente gli emulatori.
+- SMART (`lib/storage/smart.ts`) verificato solo nel percorso di
+  degrado: né `smartctl` né un accesso privilegiato a un device reale
+  sono disponibili in questo ambiente sandbox, quindi il percorso "letto
+  con successo" (parsing del JSON di `smartctl -H -j`) non è stato
+  esercitato contro un output reale — solo contro la logica di
+  parsing/gestione errori. Da verificare sul Wyse con `smartmontools`
+  installato.
+- Backup: verificato a fondo su filesystem reale in questo ambiente
+  (copia con limite di banda, verifica di integrità, skip incrementale,
+  gestione file modificato a metà copia, snapshot DB via `VACUUM INTO`,
+  ripristino con recupero effettivo del contenuto) — non verificato lo
+  scenario reale "secondo disco USB/SATA che si scollega a metà backup"
+  (in questo ambiente ogni percorso è sullo stesso filesystem), né il
+  recovery completo su hardware nuovo end-to-end.
