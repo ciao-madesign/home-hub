@@ -132,6 +132,11 @@ statico configurabile, vedi proposte aperte §3).
 HTTPS automatico, port forwarding, tunnel, autenticazione remota
 (il backend supporta già login remoto via password — manca l'infrastruttura
 di rete/HTTPS/DDNS attorno), sessioni/revoca, recupero password.
+**Aggiunta a questa fase (vedi §2)**: VPN server personale (WireGuard) per
+uscire su Internet con l'IP di casa da remoto — la fase più delicata dal
+punto di vista della sicurezza fatta finora, richiede una progettazione
+dedicata (threat model, isolamento, gestione chiavi) prima di scrivere
+codice, non solo l'implementazione diretta come per le fasi precedenti.
 
 ### Fase 10 — Sistema
 🟡 Fatto: monitoraggio CPU/RAM/temperatura/storage/servizi, indicatore
@@ -232,12 +237,57 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   l'unit systemd) è stato giudicato troppo rischioso per un'operazione
   self-service in V1; vanno ricopiati a mano durante il recovery guidato
   (§35).
+- **Fase 9 — aggiunto un VPN server personale (WireGuard)**: richiesta
+  esplicita dell'utente, non presente in SPEC_V1/V2. Obiettivo: potersi
+  connettere da remoto e uscire su Internet con l'IP di casa (es. per
+  usare servizi italiani in geo-restrizione dall'estero — l'utente ha
+  usato DAZN come esempio, non un requisito specifico). Concettualmente
+  diverso dall'"Accesso remoto" già previsto dalla spec (§22-24, che è
+  accesso alla sola Web App/Hub, autenticato, con superficie limitata
+  alle API dell'Hub): un VPN server espone accesso di rete generico,
+  quindi va trattato come la funzionalità più sensibile in termini di
+  sicurezza costruita finora. **Prima della scrittura del codice va
+  fatta una progettazione di sicurezza dedicata** (vedi proposte aperte,
+  §3) — non si applica il ritmo "implementa e verifica" usato per le
+  fasi precedenti.
 
 ## 3. Proposte aperte / da decidere con l'utente
 
 Idee emerse durante l'implementazione, non ancora richieste esplicitamente
 dalla spec né decise — da validare con l'utente prima di implementarle:
 
+- **VPN server (WireGuard) — punti da chiudere prima del codice
+  (Fase 9)**: aggiunto su richiesta esplicita (vedi §2), ma i seguenti
+  punti vanno decisi con l'utente prima di implementare, non durante:
+  - **Tunnel-completo vs solo-accesso-LAN**: il client VPN deve poter
+    instradare *tutto* il traffico Internet attraverso casa (necessario
+    per il caso d'uso "esco con l'IP italiano"), oppure solo raggiungere
+    la rete/i servizi di casa? Sono due profili WireGuard diversi
+    (`AllowedIPs = 0.0.0.0/0` vs la sola subnet di casa) — la prima
+    opzione consuma banda upload di casa per tutto il traffico del
+    dispositivo remoto, va dimensionata rispetto alla linea disponibile.
+  - **Superficie esposta**: un solo servizio in ascolto va esposto su
+    Internet, la porta UDP di WireGuard — non l'Hub API né altri
+    servizi. Il port forwarding necessario è indipendente da quello
+    (eventuale) per l'accesso remoto HTTPS della Fase 9 "base".
+  - **Isolamento dal resto della rete/Hub**: un client connesso in VPN
+    deve poter raggiungere *solo* Internet (uscita) o anche la LAN di
+    casa/l'Hub stesso? Se anche l'Hub, la VPN diventa un secondo modo di
+    accedere alla Web App oltre a quello via HTTPS: va deciso se
+    convivono o se la VPN resta scoped alla sola navigazione.
+  - **Gestione chiavi**: WireGuard usa coppie di chiavi statiche per
+    peer (non username/password) — dove/come vengono generate,
+    distribuite (QR/file di config scaricabile dalla Web App?) e
+    revocate le chiavi dei dispositivi.
+  - **Dove gira**: come per Gaming, un'interfaccia di rete WireGuard
+    tipicamente richiede privilegi di rete che un container isolato non
+    ha di norma (o richiede `NET_ADMIN` esplicito) — da verificare se
+    convive con l'Hub API sull'host o va isolata a parte.
+  - **Cosa NON verificabile in questo ambiente sandbox**: nessun router
+    reale con NAT/port forwarding, nessuna linea Internet domestica reale
+    con IP pubblico — il traffico WireGuard stesso e il collegamento
+    end-to-end da "fuori" andranno dichiarati come non validati fino al
+    deploy sul Wyse, stesso trattamento già dato a Jellyfin/Immich reali.
 - **Priorità risorse dinamica per i download**: oggi il limite di banda
   del Download Manager è statico (un valore configurato una volta). La
   spec (§32) implica una riduzione dinamica quando streaming/backup sono
