@@ -385,6 +385,11 @@ export interface WifiStatus {
   connectedSsid: string | null;
 }
 
+export interface SetupStorageResult {
+  created: string[];
+  alreadyExisted: string[];
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -559,4 +564,25 @@ export const api = {
   scanWifi: () => request<{ networks: WifiNetwork[] }>("/network/wifi/scan"),
   connectWifi: (ssid: string, password: string | null) =>
     request<{ ok: true }>("/network/wifi/connect", { method: "POST", body: JSON.stringify({ ssid, password }) }),
+
+  getHubName: () => request<{ hubName: string }>("/settings/hub-name"),
+
+  // Wizard di primo avvio (§28) — nessuna auth: valido solo finché il
+  // setup non è completato (guardia lato server).
+  getSetupStatus: () => request<{ completed: boolean }>("/setup/status"),
+  createSetupAdmin: (fields: { username: string; displayName: string; password: string }) =>
+    request<{ user: Profile }>("/setup/admin", { method: "POST", body: JSON.stringify(fields) }),
+  createSetupUser: (fields: { username: string; displayName: string; password: string | null }) =>
+    request<{ user: Profile }>("/setup/users", { method: "POST", body: JSON.stringify(fields) }),
+  getSetupStorage: () => request<{ disks: DiskInfo[] }>("/setup/storage"),
+  initSetupStorage: () => request<SetupStorageResult>("/setup/storage/init", { method: "POST" }),
+  getSetupLibraries: () => request<{ services: ServiceStatus[] }>("/setup/libraries"),
+  saveSetupSettings: (hubName: string) =>
+    request<{ ok: true }>("/setup/settings", { method: "POST", body: JSON.stringify({ hubName }) }),
+  completeSetup: () => request<{ ok: true }>("/setup/complete", { method: "POST" }),
+
+  getSetupWifiStatus: () => request<WifiStatus>("/setup/wifi/status"),
+  scanSetupWifi: () => request<{ networks: WifiNetwork[] }>("/setup/wifi/scan"),
+  connectSetupWifi: (ssid: string, password: string | null) =>
+    request<{ ok: true }>("/setup/wifi/connect", { method: "POST", body: JSON.stringify({ ssid, password }) }),
 };

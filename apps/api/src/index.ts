@@ -20,6 +20,8 @@ import { storageRoutes } from "./routes/storage.js";
 import { bootstrapBackupScheduler } from "./lib/storage/backup.js";
 import { networkRoutes } from "./routes/network.js";
 import { startMdnsAdvertising } from "./lib/network/mdns.js";
+import { setupRoutes } from "./routes/setup.js";
+import { settingsRoutes } from "./routes/settings.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -50,6 +52,8 @@ async function main() {
   await app.register(gamingRoutes);
   await app.register(storageRoutes);
   await app.register(networkRoutes);
+  await app.register(setupRoutes);
+  await app.register(settingsRoutes);
 
   bootstrapBackupScheduler();
   startMdnsAdvertising();

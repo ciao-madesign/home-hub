@@ -1,5 +1,4 @@
 import { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,22 +46,6 @@ function runMigrations(database: DatabaseSync) {
   }
 }
 
-/**
- * Seed minimo per rendere utilizzabile la selezione profilo allo scaffold
- * iniziale. Il wizard di primo avvio (Fase 4/§28) sostituirà questo seed
- * con la creazione utenti guidata.
- */
-function seedDefaultUsers(database: DatabaseSync) {
-  const count = database.prepare("SELECT COUNT(*) as n FROM users").get() as { n: number };
-  if (count.n > 0) return;
-
-  const insert = database.prepare(
-    `INSERT INTO users (id, username, display_name, role, avatar_color) VALUES (?, ?, ?, ?, ?)`,
-  );
-  insert.run(randomUUID(), "owner", "Owner", "admin", "#6366f1");
-  insert.run(randomUUID(), "utente", "Utente", "user", "#22c55e");
-}
-
 export function getDb(): DatabaseSync {
   if (db) return db;
 
@@ -72,7 +55,6 @@ export function getDb(): DatabaseSync {
   db.exec("PRAGMA foreign_keys = ON;");
 
   runMigrations(db);
-  seedDefaultUsers(db);
 
   return db;
 }

@@ -1,16 +1,25 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { NAV_ITEMS } from "../nav";
+import { api } from "../api/client";
 import { IconChevronsLeft, IconChevronsRight } from "./icons";
 
 const COLLAPSE_KEY = "hub.sidebarCollapsed";
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === "1");
+  const [hubName, setHubName] = useState("Home Hub");
 
   useEffect(() => {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
+
+  useEffect(() => {
+    api
+      .getHubName()
+      .then((res) => setHubName(res.hubName))
+      .catch(() => {});
+  }, []);
 
   return (
     <aside
@@ -48,7 +57,7 @@ export function Sidebar() {
             flexShrink: 0,
           }}
         />
-        {!collapsed && <span>Home Hub</span>}
+        {!collapsed && <span>{hubName}</span>}
       </div>
 
       <nav

@@ -142,11 +142,33 @@ riservata agli admin, con degrado esplicito a "non disponibile" quando
 gestito lato UX (pulsante sul router + rilevamento stato) invece di uno
 specifico comando `nmcli`, la cui sintassi WPS non è standardizzata —
 vedi decisione in §2.
-⬜ Da fare: wizard di primo avvio, accesso remoto HTTPS + DDNS/tunnel,
-sessioni/revoca, recupero password (il backend supporta già login
-remoto via password — manca l'infrastruttura di rete/HTTPS/DDNS
-attorno) — **poi, per ultimo**, il VPN server personale (WireGuard,
-aggiunto allo scope su richiesta esplicita, vedi §2): è la
+🟡 Fatto (secondo blocco — wizard di primo avvio, §28): quando non esiste
+ancora nessun utente, la Web App mostra un wizard in 5 passi (rete,
+utenti, storage, librerie, impostazioni principali) invece della
+schermata di selezione profilo. Sostituisce il precedente seed
+automatico di due utenti placeholder (`owner`/`utente` senza password) —
+rimosso da `db/index.ts`. Passo "utenti": crea l'account admin (password
+obbligatoria) e opzionalmente un secondo utente (password facoltativa,
+adatto a un familiare che userà solo l'accesso LAN). Passo "storage":
+mostra spazio libero sul disco dati (riusa `lib/storage/disks.ts`) e crea
+la struttura di cartelle attesa se mancante. Passo "librerie": stato di
+raggiungibilità di Jellyfin/Immich, puramente informativo (la
+configurazione vera e propria resta nei rispettivi pannelli/nei file
+`.env`, fuori scope). Passo "impostazioni": nome dell'Hub, salvato nella
+tabella `settings` e mostrato nella sidebar al posto del testo fisso
+"Home Hub". Gli endpoint `/api/setup/*` sono deliberatamente senza
+autenticazione (nessun utente esiste ancora quando servono) ma si
+rifiutano permanentemente non appena il wizard è completato
+(`isSetupCompleted()`), indipendentemente da login — verificato con curl
+(tentativo di ricreare un admin dopo il completamento → 409). Flusso
+completo end-to-end verificato in un browser reale (Playwright): dischi
+vuoti → wizard → creazione admin reale → login con quell'utente → nome
+Hub personalizzato visibile in sidebar.
+⬜ Da fare: accesso remoto HTTPS + DDNS/tunnel, sessioni/revoca, recupero
+password (il backend supporta già login remoto via password — manca
+l'infrastruttura di rete/HTTPS/DDNS attorno) — **poi, per ultimo**, il
+VPN server personale (WireGuard, aggiunto allo scope su richiesta
+esplicita, vedi §2): è la
 parte più delicata dal punto di vista della sicurezza fatta finora,
 costruita a valle del resto della fase.
 
@@ -261,6 +283,22 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   pura) invece di shellare `avahi-publish-service`, perché avahi non è
   presente di default né sul Wyse né in questo ambiente di sviluppo —
   vedi `docs/EXTERNAL_TOOLS.md`.
+- **Fase 9 — il wizard sostituisce il seed automatico di utenti**: dallo
+  scaffold iniziale, `db/index.ts` creava sempre due utenti placeholder
+  (`owner`/admin, `utente`/user, nessuna password) al primo avvio, solo
+  per rendere subito usabile la selezione profilo durante lo sviluppo.
+  Con il wizard questo non serve più ed è stato rimosso: un DB vuoto
+  significa "nessun utente", che ora è esattamente la condizione che fa
+  scattare il wizard lato frontend (`GET /api/setup/status`).
+- **Fase 9 — endpoint del wizard senza autenticazione, ma a tempo**: gli
+  endpoint `/api/setup/*` non possono richiedere una sessione (nessun
+  utente esiste ancora quando servono), quindi la sicurezza non viene da
+  `requireAuth`/`requireAdmin` ma da un'unica guardia (`isSetupCompleted()`)
+  applicata a ognuno: una volta completato il wizard, si rifiutano per
+  sempre con 409, a prescindere da chi chiama. Stesso principio già usato
+  altrove nel progetto (una guardia esplicita invece di dedurre lo stato
+  da altri segnali) — verificato che il rifiuto persiste anche dopo il
+  completamento.
 - **Fase 9 — aggiunto un VPN server personale (WireGuard), ultima
   funzione della fase**: richiesta esplicita dell'utente, non presente
   in SPEC_V1/V2. Obiettivo: potersi connettere da remoto e uscire su

@@ -106,9 +106,18 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   schermata di selezione profilo (per farsi scoprire da un secondo
   dispositivo, prima del login) sia nella pagina Sistema. Gestione Wi-Fi
   (scansione/connessione) per gli admin, via NetworkManager, con
-  degrado esplicito se non disponibile. **Non implementato**: wizard di
-  primo avvio, accesso remoto HTTPS/DDNS/tunnel, VPN personale — vedi
-  `docs/SPECIFICHE.md`.
+  degrado esplicito se non disponibile.
+- **Rete — wizard di primo avvio** (§28, seconda parte della Fase 9): al
+  primo avvio (nessun utente ancora creato) l'Hub mostra un wizard guidato
+  in 5 passi — rete (Wi-Fi opzionale), creazione dell'account
+  amministratore (+ un secondo utente facoltativo), verifica del disco
+  dati e creazione della struttura cartelle, stato di Jellyfin/Immich,
+  nome dell'Hub. Sostituisce il precedente seed automatico di due utenti
+  finti. Gli endpoint del wizard (`/api/setup/*`, senza autenticazione:
+  a quel punto non esiste ancora nessun utente) si disattivano in modo
+  permanente non appena il wizard viene completato, indipendentemente da
+  login — verificato. **Non implementato**: accesso remoto HTTPS/DDNS/
+  tunnel, VPN personale — vedi `docs/SPECIFICHE.md`.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -130,7 +139,7 @@ parte di client reali (macOS/iOS/Android/Windows) su una LAN reale non
 verificata. Wi-Fi verificato solo nel percorso di degrado (nessun
 NetworkManager/hardware Wi-Fi in questo ambiente).
 
-Non ancora implementato: wizard di primo avvio, accesso remoto/DDNS/
+Non ancora implementato: accesso remoto/DDNS/
 HTTPS, VPN personale, selezione traccia audio multipla, ricerca globale
 full-text, priorità dinamica di download/backup basata sull'attività di
 streaming in corso (attualmente un limite di banda statico per
@@ -155,9 +164,10 @@ npm run dev:api
 npm run dev:web
 ```
 
-Al primo avvio l'API crea `apps/api/data/hub.sqlite` con due profili di
-esempio (`Owner`/admin e `Utente`), sufficienti per usare la selezione
-profilo. Il wizard di primo avvio guidato (§28) sostituirà questo seed.
+Al primo avvio l'API crea `apps/api/data/hub.sqlite` vuoto: la Web App
+mostra automaticamente il wizard guidato (§28) per creare il primo
+account (admin), impostare Wi-Fi/storage/nome dell'Hub. Da lì in poi la
+schermata normale di selezione profilo mostra gli utenti creati.
 
 Variabili d'ambiente disponibili in `apps/api/.env.example`.
 

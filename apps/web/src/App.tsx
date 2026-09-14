@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { api } from "./api/client";
 import { ProfileProvider, useProfile } from "./context/ProfileContext";
 import { Layout } from "./components/Layout";
 import { ProfileSelect } from "./pages/ProfileSelect";
+import { SetupWizard } from "./pages/SetupWizard";
 import { Home } from "./pages/Home";
 import { Movies } from "./pages/Movies";
 import { MovieDetail } from "./pages/MovieDetail";
@@ -61,12 +64,49 @@ function Gate() {
   );
 }
 
+function SetupGate() {
+  const [completed, setCompleted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api
+      .getSetupStatus()
+      .then((res) => setCompleted(res.completed))
+      // Hub API irraggiungibile: non blocca sul wizard, la normale
+      // gestione offline/errore di ProfileSelect prende il sopravvento.
+      .catch(() => setCompleted(true));
+  }, []);
+
+  if (completed === null) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--text-faint)",
+        }}
+      >
+        Caricamento…
+      </div>
+    );
+  }
+
+  if (!completed) {
+    return <SetupWizard onFinished={() => setCompleted(true)} />;
+  }
+
+  return (
+    <ProfileProvider>
+      <Gate />
+    </ProfileProvider>
+  );
+}
+
 export function App() {
   return (
     <BrowserRouter>
-      <ProfileProvider>
-        <Gate />
-      </ProfileProvider>
+      <SetupGate />
     </BrowserRouter>
   );
 }
