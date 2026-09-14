@@ -3,10 +3,18 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
-import { config } from "../config.js";
 import { getDb } from "../db/index.js";
 import { parseSqliteTimestamp } from "./sqliteDate.js";
 import { assertSafeRelativePath, UnsafePathError } from "./pathSafety.js";
+import {
+  absOnDisk,
+  getDiskById,
+  mergedReaddir,
+  pickWriteDisk,
+  resolveAcrossDisks,
+  walkAcrossDisks,
+} from "./storage/library.js";
+import type { ConfiguredDisk } from "./storage/disks.js";
 
 export type Scope = "shared" | "private";
 
@@ -22,34 +30,26 @@ export class FilesError extends Error {
 /** Durata del cestino (§11): 7 giorni prima della rimozione definitiva. */
 const TRASH_RETENTION_DAYS = 7;
 
-function filesRoot(): string {
-  return path.join(config.dataRoot, "Files");
+/**
+ * Percorsi RELATIVI a un disco dati (mai assoluti): la scrittura vera e
+ * propria passa da lib/storage/library.ts, che decide su quale dei
+ * dischi configurati (§4) un percorso relativo vive fisicamente — questo
+ * modulo non assume più un unico disco dati.
+ */
+function scopeRelRoot(scope: Scope, userId: string): string {
+  return scope === "shared" ? "Files/shared" : `Files/private/${userId}`;
 }
-function sharedRoot(): string {
-  return path.join(filesRoot(), "shared");
-}
-function privateRoot(userId: string): string {
-  return path.join(filesRoot(), "private", userId);
-}
-function trashRoot(userId: string): string {
-  return path.join(filesRoot(), ".trash", userId);
-}
-
-function scopeRoot(scope: Scope, userId: string): string {
-  return scope === "shared" ? sharedRoot() : privateRoot(userId);
+function trashRelRoot(userId: string): string {
+  return `Files/.trash/${userId}`;
 }
 
-function resolveInRoot(root: string, relPath: string): string {
+function safeSegments(relPath: string): string[] {
   try {
-    return path.join(root, ...assertSafeRelativePath(relPath));
+    return assertSafeRelativePath(relPath);
   } catch (err) {
     if (err instanceof UnsafePathError) throw new FilesError("Percorso non valido");
     throw err;
   }
-}
-
-async function ensureDir(dir: string): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
 }
 
 export interface FileEntry {
@@ -64,26 +64,18 @@ export async function listDirectory(
   userId: string,
   relPath: string,
 ): Promise<FileEntry[]> {
-  const root = scopeRoot(scope, userId);
-  await ensureDir(root);
-  const dir = resolveInRoot(root, relPath);
-
-  let entries: fsSync.Dirent[];
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
+  const root = scopeRelRoot(scope, userId);
+  const segments = safeSegments(relPath);
+  const merged = await mergedReaddir(root, segments);
 
   const result: FileEntry[] = [];
-  for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue; // nasconde .trash e file nascosti
-    const stat = await fs.stat(path.join(dir, entry.name));
+  for (const { name, dirent, disk } of merged) {
+    if (name.startsWith(".")) continue; // nasconde .trash e file nascosti
+    const stat = await fs.stat(absOnDisk(disk, root, [...segments, name]));
     result.push({
-      name: entry.name,
-      isDirectory: entry.isDirectory(),
-      size: entry.isDirectory() ? null : stat.size,
+      name,
+      isDirectory: dirent.isDirectory(),
+      size: dirent.isDirectory() ? null : stat.size,
       modifiedAt: stat.mtime.toISOString(),
     });
   }
@@ -100,8 +92,19 @@ export async function createFolder(
   name: string,
 ): Promise<void> {
   if (!name || /[/\\]/.test(name)) throw new FilesError("Nome cartella non valido");
-  const parent = resolveInRoot(scopeRoot(scope, userId), relPath);
-  await ensureDir(parent);
+  const root = scopeRelRoot(scope, userId);
+  const segments = safeSegments(relPath);
+
+  // Verificato su TUTTI i dischi (non solo quello che riceverà la
+  // scrittura, §4): evita di creare due cartelle omonime sparse su
+  // dischi diversi quando l'utente chiede esplicitamente una cartella.
+  if (await resolveAcrossDisks(root, [...segments, name])) {
+    throw new FilesError("Esiste già un elemento con questo nome", "conflict");
+  }
+
+  const disk = await pickWriteDisk();
+  const parent = absOnDisk(disk, root, segments);
+  await fs.mkdir(parent, { recursive: true });
   try {
     await fs.mkdir(path.join(parent, name));
   } catch (err) {
@@ -119,10 +122,13 @@ export async function renameEntry(
   newName: string,
 ): Promise<void> {
   if (!newName || /[/\\]/.test(newName)) throw new FilesError("Nome non valido");
-  const source = resolveInRoot(scopeRoot(scope, userId), relPath);
-  const dest = path.join(path.dirname(source), newName);
+  const root = scopeRelRoot(scope, userId);
+  const found = await resolveAcrossDisks(root, safeSegments(relPath));
+  if (!found) throw new FilesError("Elemento non trovato", "not_found");
+
+  const dest = path.join(path.dirname(found.abs), newName);
   try {
-    await fs.rename(source, dest);
+    await fs.rename(found.abs, dest);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") throw new FilesError("Elemento non trovato", "not_found");
@@ -133,7 +139,12 @@ export async function renameEntry(
   }
 }
 
-/** Spostare tra scope shared/private è anche il modo per cambiare la privacy di un contenuto (§11/§20). */
+/**
+ * Spostare tra scope shared/private è anche il modo per cambiare la privacy
+ * di un contenuto (§11/§20). Resta sempre sul disco fisico dove già si
+ * trova (§4 riguarda la scelta del disco per i NUOVI file, non i move):
+ * un semplice rename, mai una copia cross-disco.
+ */
 export async function moveEntry(
   scope: Scope,
   userId: string,
@@ -141,12 +152,16 @@ export async function moveEntry(
   destScope: Scope,
   destRelPath: string,
 ): Promise<void> {
-  const source = resolveInRoot(scopeRoot(scope, userId), relPath);
-  const destDir = resolveInRoot(scopeRoot(destScope, userId), destRelPath);
-  await ensureDir(destDir);
-  const dest = path.join(destDir, path.basename(source));
+  const srcRoot = scopeRelRoot(scope, userId);
+  const found = await resolveAcrossDisks(srcRoot, safeSegments(relPath));
+  if (!found) throw new FilesError("Elemento non trovato", "not_found");
+
+  const destRoot = scopeRelRoot(destScope, userId);
+  const destDir = absOnDisk(found.disk, destRoot, safeSegments(destRelPath));
+  await fs.mkdir(destDir, { recursive: true });
+  const dest = path.join(destDir, path.basename(found.abs));
   try {
-    await fs.rename(source, dest);
+    await fs.rename(found.abs, dest);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") throw new FilesError("Elemento non trovato", "not_found");
@@ -157,8 +172,10 @@ export async function moveEntry(
   }
 }
 
-export function resolveExistingPath(scope: Scope, userId: string, relPath: string): string {
-  return resolveInRoot(scopeRoot(scope, userId), relPath);
+export async function resolveExistingPath(scope: Scope, userId: string, relPath: string): Promise<string> {
+  const found = await resolveAcrossDisks(scopeRelRoot(scope, userId), safeSegments(relPath));
+  if (!found) throw new FilesError("Elemento non trovato", "not_found");
+  return found.abs;
 }
 
 export async function saveUpload(
@@ -169,8 +186,11 @@ export async function saveUpload(
   stream: NodeJS.ReadableStream,
 ): Promise<void> {
   if (!fileName || /[/\\]/.test(fileName)) throw new FilesError("Nome file non valido");
-  const dir = resolveInRoot(scopeRoot(scope, userId), relPath);
-  await ensureDir(dir);
+  const root = scopeRelRoot(scope, userId);
+  const segments = safeSegments(relPath);
+  const disk = await pickWriteDisk();
+  const dir = absOnDisk(disk, root, segments);
+  await fs.mkdir(dir, { recursive: true });
   // Formato originale mantenuto, nessuna compressione (§11).
   await pipeline(stream, fsSync.createWriteStream(path.join(dir, fileName)));
 }
@@ -185,26 +205,37 @@ interface TrashRow {
   name: string;
   is_directory: number;
   trash_path: string;
+  disk_id: string;
   trashed_at: string;
 }
 
 export async function moveToTrash(scope: Scope, userId: string, relPath: string): Promise<void> {
-  const source = resolveInRoot(scopeRoot(scope, userId), relPath);
-  const stat = await fs.stat(source).catch(() => null);
-  if (!stat) throw new FilesError("Elemento non trovato", "not_found");
+  const root = scopeRelRoot(scope, userId);
+  const found = await resolveAcrossDisks(root, safeSegments(relPath));
+  if (!found) throw new FilesError("Elemento non trovato", "not_found");
+  const stat = await fs.stat(found.abs);
 
   const id = randomUUID();
-  const dir = trashRoot(userId);
-  await ensureDir(dir);
-  const trashName = `${id}__${path.basename(source)}`;
-  await fs.rename(source, path.join(dir, trashName));
+  const trashName = `${id}__${path.basename(found.abs)}`;
+  // Stesso disco di origine (§4): un rename dentro lo stesso filesystem è
+  // istantaneo, spostare nel cestino su un disco diverso richiederebbe una
+  // copia completa solo per un'operazione pensata per essere reversibile.
+  const trashDir = absOnDisk(found.disk, trashRelRoot(userId), []);
+  await fs.mkdir(trashDir, { recursive: true });
+  await fs.rename(found.abs, path.join(trashDir, trashName));
 
   getDb()
     .prepare(
-      `INSERT INTO trash_items (id, user_id, scope, original_path, name, is_directory, trash_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO trash_items (id, user_id, scope, original_path, name, is_directory, trash_path, disk_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, userId, scope, relPath, path.basename(source), stat.isDirectory() ? 1 : 0, trashName);
+    .run(id, userId, scope, relPath, path.basename(found.abs), stat.isDirectory() ? 1 : 0, trashName, found.disk.id);
+}
+
+function trashRow(userId: string, row: TrashRow): { disk: ConfiguredDisk; abs: string } {
+  const disk = getDiskById(row.disk_id);
+  if (!disk) throw new FilesError("Disco del cestino non più configurato", "not_found");
+  return { disk, abs: absOnDisk(disk, trashRelRoot(userId), [row.trash_path]) };
 }
 
 export async function purgeExpiredTrash(userId: string): Promise<void> {
@@ -217,7 +248,8 @@ export async function purgeExpiredTrash(userId: string): Promise<void> {
     .all(userId, cutoff) as unknown as TrashRow[];
 
   for (const item of expired) {
-    await fs.rm(path.join(trashRoot(userId), item.trash_path), { recursive: true, force: true });
+    const { abs } = trashRow(userId, item);
+    await fs.rm(abs, { recursive: true, force: true });
     db.prepare(`DELETE FROM trash_items WHERE id = ?`).run(item.id);
   }
 }
@@ -261,8 +293,9 @@ function getTrashRow(userId: string, trashId: string): TrashRow {
 
 export async function restoreFromTrash(userId: string, trashId: string): Promise<void> {
   const row = getTrashRow(userId, trashId);
-  const destDir = path.dirname(resolveInRoot(scopeRoot(row.scope, userId), row.original_path));
-  await ensureDir(destDir);
+  const { disk, abs: trashAbs } = trashRow(userId, row);
+  const destDir = path.dirname(absOnDisk(disk, scopeRelRoot(row.scope, userId), safeSegments(row.original_path)));
+  await fs.mkdir(destDir, { recursive: true });
 
   let dest = path.join(destDir, row.name);
   if (fsSync.existsSync(dest)) {
@@ -270,13 +303,14 @@ export async function restoreFromTrash(userId: string, trashId: string): Promise
     dest = path.join(destDir, `${parsed.name} (ripristinato)${parsed.ext}`);
   }
 
-  await fs.rename(path.join(trashRoot(userId), row.trash_path), dest);
+  await fs.rename(trashAbs, dest);
   getDb().prepare(`DELETE FROM trash_items WHERE id = ?`).run(trashId);
 }
 
 export async function deletePermanentlyFromTrash(userId: string, trashId: string): Promise<void> {
   const row = getTrashRow(userId, trashId);
-  await fs.rm(path.join(trashRoot(userId), row.trash_path), { recursive: true, force: true });
+  const { abs } = trashRow(userId, row);
+  await fs.rm(abs, { recursive: true, force: true });
   getDb().prepare(`DELETE FROM trash_items WHERE id = ?`).run(trashId);
 }
 
@@ -286,8 +320,9 @@ export async function deletePermanentDirect(
   userId: string,
   relPath: string,
 ): Promise<void> {
-  const target = resolveInRoot(scopeRoot(scope, userId), relPath);
-  await fs.rm(target, { recursive: true, force: true });
+  const found = await resolveAcrossDisks(scopeRelRoot(scope, userId), safeSegments(relPath));
+  if (!found) return; // già assente: coerente con la force:true di prima (mai un errore per qualcosa già sparito)
+  await fs.rm(found.abs, { recursive: true, force: true });
 }
 
 // --- Duplicati (§11: rilevamento automatico, nessuna eliminazione automatica) ----
@@ -298,60 +333,30 @@ async function hashFile(absPath: string): Promise<string> {
   return hash.digest("hex");
 }
 
-interface WalkedFile {
-  relPath: string;
-  abs: string;
-  size: number;
-  modifiedAt: string;
-}
-
-async function walkFiles(dir: string, root: string, out: WalkedFile[]): Promise<void> {
-  let entries: fsSync.Dirent[];
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue;
-    const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await walkFiles(abs, root, out);
-    } else {
-      const stat = await fs.stat(abs);
-      out.push({
-        relPath: path.relative(root, abs),
-        abs,
-        size: stat.size,
-        modifiedAt: stat.mtime.toISOString(),
-      });
-    }
-  }
-}
-
 export interface DuplicateGroup {
   hash: string;
   size: number;
   files: { path: string; modifiedAt: string }[];
 }
 
+/** Cerca duplicati anche tra dischi diversi (§4): due copie identiche sparse su due dischi sono comunque un duplicato. */
 export async function findDuplicates(scope: Scope, userId: string): Promise<DuplicateGroup[]> {
-  const root = scopeRoot(scope, userId);
-  const files: WalkedFile[] = [];
-  await walkFiles(root, root, files);
+  const root = scopeRelRoot(scope, userId);
+  const walked = (await walkAcrossDisks(root)).filter((f) => !f.isDirectory);
+  const files = await Promise.all(walked.map(async (f) => ({ ...f, stat: await fs.stat(f.abs) })));
 
   // Raggruppa prima per dimensione: file di dimensione diversa non sono mai duplicati,
   // evita di calcolare l'hash su tutta la libreria.
-  const bySize = new Map<number, WalkedFile[]>();
+  const bySize = new Map<number, typeof files>();
   for (const f of files) {
-    if (!bySize.has(f.size)) bySize.set(f.size, []);
-    bySize.get(f.size)!.push(f);
+    if (!bySize.has(f.stat.size)) bySize.set(f.stat.size, []);
+    bySize.get(f.stat.size)!.push(f);
   }
 
   const groups: DuplicateGroup[] = [];
   for (const candidates of bySize.values()) {
     if (candidates.length < 2) continue;
-    const byHash = new Map<string, WalkedFile[]>();
+    const byHash = new Map<string, typeof candidates>();
     for (const f of candidates) {
       const hash = await hashFile(f.abs);
       if (!byHash.has(hash)) byHash.set(hash, []);
@@ -361,8 +366,8 @@ export async function findDuplicates(scope: Scope, userId: string): Promise<Dupl
       if (group.length < 2) continue;
       groups.push({
         hash,
-        size: group[0].size,
-        files: group.map((g) => ({ path: g.relPath, modifiedAt: g.modifiedAt })),
+        size: group[0].stat.size,
+        files: group.map((g) => ({ path: g.relPath, modifiedAt: g.stat.mtime.toISOString() })),
       });
     }
   }
@@ -384,34 +389,21 @@ export async function searchByName(
   userId: string,
   query: string,
 ): Promise<SearchResult[]> {
-  const root = scopeRoot(scope, userId);
   const needle = query.toLowerCase();
+  const root = scopeRelRoot(scope, userId);
+  const walked = await walkAcrossDisks(root);
+
   const results: SearchResult[] = [];
-
-  async function walk(dir: string): Promise<void> {
-    let entries: fsSync.Dirent[];
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) continue;
-      const abs = path.join(dir, entry.name);
-      if (entry.name.toLowerCase().includes(needle)) {
-        const stat = await fs.stat(abs);
-        results.push({
-          path: path.relative(root, abs),
-          name: entry.name,
-          isDirectory: entry.isDirectory(),
-          size: entry.isDirectory() ? null : stat.size,
-          modifiedAt: stat.mtime.toISOString(),
-        });
-      }
-      if (entry.isDirectory()) await walk(abs);
-    }
+  for (const f of walked) {
+    if (!path.basename(f.relPath).toLowerCase().includes(needle)) continue;
+    const stat = await fs.stat(f.abs);
+    results.push({
+      path: f.relPath,
+      name: path.basename(f.relPath),
+      isDirectory: f.isDirectory,
+      size: f.isDirectory ? null : stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+    });
   }
-
-  await walk(root);
   return results;
 }

@@ -132,7 +132,7 @@ export async function filesRoutes(app: FastifyInstance) {
     if (!query.success) return reply.code(400).send({ error: "invalid_query" });
 
     try {
-      const abs = resolveExistingPath(query.data.scope, req.auth!.user.id, query.data.path);
+      const abs = await resolveExistingPath(query.data.scope, req.auth!.user.id, query.data.path);
       const stat = await fsSync.promises.stat(abs);
       if (stat.isDirectory()) return reply.code(400).send({ error: "invalid_path" });
 
@@ -141,9 +141,6 @@ export async function filesRoutes(app: FastifyInstance) {
       reply.header("Content-Length", stat.size);
       return reply.send(fsSync.createReadStream(abs));
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        return reply.code(404).send({ error: "not_found" });
-      }
       if (handleFilesError(err, reply)) return;
       throw err;
     }

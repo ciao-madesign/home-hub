@@ -14,14 +14,24 @@ export interface DiskInfo {
   smart: SmartStatus | null;
 }
 
-interface ConfiguredDisk {
+export interface ConfiguredDisk {
   id: string;
   label: string;
   path: string;
+  /**
+   * "data": partecipa alla libreria virtuale multi-disco (§4,
+   * lib/storage/library.ts) — i nuovi file del File Manager possono
+   * finire qui. Un disco extra senza `role` resta solo informativo (visibile
+   * in Storage, mai scelto automaticamente) — va dichiarato esplicitamente
+   * "data" per diventare un bersaglio di scrittura, per non cambiare
+   * comportamento a chi ha già configurato HUB_EXTRA_DISKS_JSON prima di
+   * questa funzionalità.
+   */
+  role?: "data";
 }
 
 function configuredDisks(): ConfiguredDisk[] {
-  const disks: ConfiguredDisk[] = [{ id: "data", label: "Disco dati", path: config.dataRoot }];
+  const disks: ConfiguredDisk[] = [{ id: "data", label: "Disco dati", path: config.dataRoot, role: "data" }];
   if (config.backupRoot) disks.push({ id: "backup", label: "Disco di backup", path: config.backupRoot });
 
   if (config.extraDisksJson) {
@@ -36,12 +46,18 @@ function configuredDisks(): ConfiguredDisk[] {
   return disks;
 }
 
+/** Dischi che partecipano alla libreria virtuale multi-disco del File Manager (§4). */
+export function dataDiskCandidates(): ConfiguredDisk[] {
+  return configuredDisks().filter((d) => d.role === "data");
+}
+
 /**
  * Rilevamento dischi (§29): visibilità (capacità, spazio libero, stato
- * connesso/non disponibile, SMART) sui mount point configurati. Non
- * implementa la libreria virtuale multi-disco con distribuzione automatica
- * dei nuovi file (§4) — File Manager/Games/Downloads assumono ancora un
- * unico disco dati, vedi docs/SPECIFICHE.md.
+ * connesso/non disponibile, SMART) sui mount point configurati. La
+ * libreria virtuale multi-disco (§4, lib/storage/library.ts) è
+ * implementata per il File Manager, usando i dischi con `role: "data"`
+ * qui sotto — Games/Downloads/Photos assumono ancora un unico disco dati
+ * (`HUB_DATA_ROOT`), vedi docs/SPECIFICHE.md.
  */
 export async function listDisks(): Promise<DiskInfo[]> {
   return Promise.all(
