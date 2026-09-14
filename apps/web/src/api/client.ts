@@ -482,6 +482,19 @@ export interface VpnPeerWithUser extends VpnPeer {
   displayName: string;
 }
 
+export interface UpdateCommit {
+  hash: string;
+  message: string;
+}
+
+export interface UpdateStatus {
+  available: boolean;
+  currentCommit: string | null;
+  remoteCommit: string | null;
+  behindCount: number;
+  commits: UpdateCommit[];
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -715,4 +728,7 @@ export const api = {
   createVpnPeer: (fields: { profile: VpnProfile; label: string; publicKey: string }) =>
     request<{ peer: VpnPeer }>("/vpn/peers", { method: "POST", body: JSON.stringify(fields) }),
   deleteVpnPeer: (id: string) => request<{ ok: true }>(`/vpn/peers/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  getUpdateStatus: () => request<UpdateStatus>("/updates/status"),
+  applyUpdate: () => request<{ updatedTo: string; restartTriggered: boolean }>("/updates/apply", { method: "POST" }),
 };

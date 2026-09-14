@@ -12,6 +12,7 @@ import {
   type Profile,
   type SessionEntry,
   type SystemEvent,
+  type UpdateStatus,
   type VpnPeer,
   type VpnPeerWithUser,
   type VpnProfile,
@@ -577,6 +578,130 @@ function NotificationsSection() {
   );
 }
 
+/** Aggiornamenti Hub autorizzati dalla Web App (§33), admin-only. */
+function UpdatesSection() {
+  const { user } = useProfile();
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [applied, setApplied] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setChecking(true);
+    api
+      .getUpdateStatus()
+      .then(setStatus)
+      .catch(() => setStatus(null))
+      .finally(() => setChecking(false));
+  }, []);
+
+  useEffect(() => {
+    if (user?.role === "admin") load();
+  }, [user, load]);
+
+  if (user?.role !== "admin") return null;
+
+  async function handleApply() {
+    setApplying(true);
+    setError(null);
+    try {
+      const res = await api.applyUpdate();
+      setApplied(res.updatedTo.slice(0, 7));
+      setModalOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? String(err.body ?? err.message) : "Aggiornamento non riuscito.");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Aggiornamenti</h2>
+      <div
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+          background: "var(--bg-card)",
+        }}
+      >
+        {!status?.available && !checking && (
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-faint)" }}>
+            Aggiornamenti non disponibili (richiede git, non trovato su questo sistema).
+          </p>
+        )}
+        {status?.available && status.behindCount === 0 && (
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-muted)" }}>
+            Già aggiornato all'ultima versione
+            {status.currentCommit && <> (<code style={{ fontSize: 12 }}>{status.currentCommit.slice(0, 7)}</code>)</>}.
+          </p>
+        )}
+        {status?.available && status.behindCount > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--text-muted)" }}>
+              {status.behindCount} {status.behindCount === 1 ? "commit" : "commit"} disponibili:
+            </p>
+            <ul style={{ margin: "0 0 8px", paddingLeft: 18, fontSize: 12, color: "var(--text-faint)" }}>
+              {status.commits.slice(0, 8).map((c) => (
+                <li key={c.hash}>{c.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {applied && (
+          <p style={{ fontSize: 13, color: "var(--status-normal, #22c55e)" }}>
+            Aggiornato a <code style={{ fontSize: 12 }}>{applied}</code> — l'Hub si sta riavviando, questa pagina si
+            ricollegherà da sola in qualche istante.
+          </p>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={load} disabled={checking} style={secondaryButtonStyleLocal}>
+            {checking ? "Controllo…" : "Controlla aggiornamenti"}
+          </button>
+          {status?.available && status.behindCount > 0 && (
+            <button
+              onClick={() => setModalOpen(true)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: "var(--accent)",
+                color: "white",
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Aggiorna e riavvia…
+            </button>
+          )}
+        </div>
+      </div>
+
+      {modalOpen && (
+        <Modal title="Confermi l'aggiornamento?" onClose={() => setModalOpen(false)}>
+          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 6px" }}>
+            L'Hub scaricherà il codice più recente, lo ricompilerà e si riavvierà da solo — resterà irraggiungibile
+            per qualche minuto. Le sessioni attive (comprese quelle remote) non vengono chiuse.
+          </p>
+          {error && <p style={{ fontSize: 13, color: "var(--status-problem)" }}>{error}</p>}
+          <div style={modalButtonRowStyle}>
+            <button style={modalSecondaryButtonStyle} onClick={() => setModalOpen(false)}>
+              Annulla
+            </button>
+            <button style={modalDangerButtonStyle} onClick={handleApply} disabled={applying}>
+              {applying ? "Aggiornamento…" : "Aggiorna"}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function PowerSection() {
   const { user } = useProfile();
   const [modalOpen, setModalOpen] = useState(false);
@@ -987,6 +1112,7 @@ export function System() {
         <NetworkSection />
         <AccountSection />
         <SessionsSection />
+        <UpdatesSection />
         <PowerSection />
       </div>
     </div>

@@ -190,4 +190,22 @@ export const config = {
   // Se non impostato, riusa il dominio DDNS già configurato (§23) quando
   // presente — stesso indirizzo, motivo in più per condividerlo.
   vpnEndpointHost: envOptional("HUB_VPN_ENDPOINT_HOST"),
+
+  // Aggiornamenti Hub autorizzati dalla Web App (§33). Root del
+  // repository calcolata dalla posizione di questo modulo (come
+  // hubConfigPaths sotto), non dalla cwd, per restare corretta sia in
+  // sviluppo sia in produzione (systemd, WorkingDirectory=apps/api).
+  repoRoot: path.join(here, "..", "..", ".."),
+  gitPath: env("HUB_GIT_PATH", "git"),
+  npmPath: env("HUB_NPM_PATH", "npm"),
+  updateBranch: env("HUB_UPDATE_BRANCH", "main"),
+  // Riavvio dell'Hub API dopo un aggiornamento: stesso principio dello
+  // spegnimento (§34) — un permesso sudo mirato a un solo comando fisso
+  // (mai influenzabile da questa richiesta), non un sudo generico.
+  // Vedi infra/systemd/homehub-update-sudoers e README "Deploy".
+  updateRestartCommand: env("HUB_UPDATE_RESTART_COMMAND", "sudo"),
+  updateRestartArgsJson: env(
+    "HUB_UPDATE_RESTART_ARGS_JSON",
+    JSON.stringify(["systemctl", "restart", "home-hub-api"]),
+  ),
 };

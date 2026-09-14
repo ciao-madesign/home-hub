@@ -150,13 +150,18 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   quando non rispondono (`docker restart`, tentativi limitati, poi una
   notifica critica visibile in Sistema — §31). Spegnimento sicuro da Web
   App per gli admin (§34), con permesso sudo mirato a un solo comando.
-  **Non implementato**: standby/wake automatico, aggiornamenti
-  dell'Hub con autorizzazione dalla Web App (§33) — per ora si
-  aggiorna da riga di comando, vedi "Aggiornamenti" sotto.
+  **Aggiornamenti autorizzati dalla Web App** (§33): controllo e
+  applicazione di nuovi commit (git pull fast-forward, build, riavvio),
+  vedi "Deploy" → "Aggiornamenti" sotto. **Non implementato**: standby/
+  wake automatico.
+- **Priorità di banda dinamica** (§32): Download Manager e Backup si
+  riducono automaticamente quando c'è una riproduzione Jellyfin attiva
+  (e, per i download, anche quando un backup è in corso) — streaming >
+  backup > download.
 - **Ricerca globale unificata** (§16): un endpoint aggregatore interroga
-  Film/Serie, Giochi e File in parallelo e mostra i risultati raggruppati
-  per tipo dalla barra di ricerca in alto — Foto e Musica non ancora
-  incluse (vedi sopra).
+  Film/Serie, Foto (match per nome file), Giochi e File in parallelo e
+  mostra i risultati raggruppati per tipo dalla barra di ricerca in alto
+  — Musica non ancora inclusa (è ancora uno stub).
 - **Web** (fuori roadmap, richiesta esplicita): sezione con collegamenti
   rapidi a siti esterni (es. La7 streaming) gestiti dagli admin, aperti
   nel browser reale del dispositivo — mai incorporati nell'Hub, perché
@@ -197,16 +202,20 @@ davvero tutto ciò che non lo richiede (chiavi del server, gestione peer
 con chiavi WireGuard reali, allocazione IP, revoca, sia via API sia in
 un browser reale); da verificare sul Wyse l'interfaccia realmente attiva,
 le regole di isolamento/NAT contro traffico vero e un handshake genuino.
+Aggiornamenti dalla Web App: la sequenza `git fetch` → confronto commit →
+`merge --ff-only` verificata per davvero contro una coppia di repository
+git veri creati apposta (fast-forward riuscito quando possibile, rifiuto
+sicuro — nessuna corruzione — quando la storia locale è divergente); il
+riavvio del servizio via sudo e la ricostruzione dei container Docker non
+sono verificabili in questo ambiente (nessun systemd/demone Docker
+reale).
 
-Non ancora implementato: standby/wake automatico, aggiornamenti
-dell'Hub con autorizzazione dalla Web App, port forwarding automatico,
-tunnel di fallback, ricerca globale su Foto/Musica (richiederebbe la
-ricerca "smart" di Immich, disattivata di default), priorità dinamica di
-download/backup basata sull'attività di streaming in corso (attualmente
-un limite di banda statico per entrambi), avvio sessioni
-Sunshine/Moonlight, libreria virtuale multi-disco con distribuzione
-automatica dei nuovi file. Vedi la roadmap completa e la checklist
-dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
+Non ancora implementato: standby/wake automatico, port forwarding
+automatico, tunnel di fallback per chi non può aprire porte (es. CGNAT),
+ricerca globale su Musica (ancora uno stub), avvio sessioni
+Sunshine/Moonlight, distribuzione multi-disco per Games/Downloads/Photos
+(il File Manager ce l'ha, vedi sopra). Vedi la roadmap completa e la
+checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 
@@ -388,6 +397,20 @@ da linkare o stampare per gli utenti finali: `docs/GUIDA_VPN.md`.
 
 ### Aggiornamenti
 
+**Dalla Web App (§33, admin)**: Sistema → Aggiornamenti → "Controlla
+aggiornamenti" mostra i commit non ancora applicati, "Aggiorna e
+riavvia" fa da solo `git pull` (fast-forward, si rifiuta se la copia
+locale è divergente — mai un merge/rebase automatico su modifiche
+locali), `npm install && npm run build`, ricostruzione dei container
+Docker e riavvio del servizio. Richiede il permesso sudo mirato in
+`infra/systemd/homehub-update-sudoers`:
+```bash
+sudo cp infra/systemd/homehub-update-sudoers /etc/sudoers.d/homehub-update
+sudo chmod 440 /etc/sudoers.d/homehub-update
+sudo visudo -c
+```
+
+**Da riga di comando** (alternativa manuale, sempre disponibile):
 ```bash
 cd /opt/home-hub && git pull
 npm install && npm run build -w apps/api

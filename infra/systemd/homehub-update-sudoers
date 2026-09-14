@@ -1,0 +1,18 @@
+# Permesso sudo mirato per il riavvio dell'Hub API dopo un aggiornamento
+# dalla Web App (§33).
+#
+# Stesso principio di homehub-shutdown-sudoers (§26, least privilege):
+# l'utente di sistema "homehub" (non root) riceve UN SOLO comando
+# specifico, senza password, invece di un sudo generico — se compromesso,
+# l'Hub API può solo riavviare se stessa, non eseguire comandi arbitrari
+# come root. Il resto dell'aggiornamento (git pull, npm install, npm
+# build, ricostruzione dei container Docker) gira già con i permessi
+# normali dell'utente "homehub", che possiede il proprio checkout ed è
+# già nel gruppo "docker" (vedi HUB_DOCKER_PATH/watchdog dei servizi).
+#
+# Installazione:
+#   sudo cp infra/systemd/homehub-update-sudoers /etc/sudoers.d/homehub-update
+#   sudo chmod 440 /etc/sudoers.d/homehub-update
+#   sudo visudo -c   # verifica sintassi prima di fidarsi del file installato
+
+homehub ALL=(root) NOPASSWD: /usr/bin/systemctl restart home-hub-api

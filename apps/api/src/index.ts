@@ -29,6 +29,7 @@ import { bootstrapServiceWatchdog } from "./lib/serviceWatchdog.js";
 import { vpnRoutes } from "./routes/vpn.js";
 import { bootstrapVpn } from "./lib/network/vpn.js";
 import { bootstrapPriorityMonitor } from "./lib/priority.js";
+import { updatesRoutes } from "./routes/updates.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -64,6 +65,7 @@ async function main() {
   await app.register(bookmarksRoutes);
   await app.register(searchRoutes);
   await app.register(vpnRoutes);
+  await app.register(updatesRoutes);
 
   bootstrapBackupScheduler();
   startMdnsAdvertising();
