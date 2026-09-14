@@ -6,9 +6,9 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo Fase 8 (Storage e Backup — dischi/SMART,
-backup automatico/manuale, ripristino base), prima di Fase 9 (Rete e
-accesso remoto).
+Ultimo aggiornamento: dopo Fase 9 parte 3 (accesso remoto — sessioni,
+password, DDNS, HTTPS via Caddy), prima del port forwarding/tunnel reale
+e del VPN (rimandato in coda su richiesta dell'utente).
 
 ---
 
@@ -367,6 +367,17 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
 Idee emerse durante l'implementazione, non ancora richieste esplicitamente
 dalla spec né decise — da validare con l'utente prima di implementarle:
 
+- **L'utente è su EOLO (FWA) — probabile CGNAT, port forwarding a
+  rischio**: informazione raccolta in conversazione, da verificare
+  concretamente quando router e Wyse saranno disponibili (confronto tra
+  l'IP pubblico mostrato dal router e quello visto da un dispositivo su
+  rete mobile — se diversi, CGNAT confermato). Se confermato, il port
+  forwarding manuale descritto in README "Deploy" §3 non funzionerà: va
+  usato da subito il **tunnel** già previsto come fallback da SPEC_V1
+  §23 (es. Cloudflare Tunnel, gratuito, nessuna porta da aprire perché è
+  l'Hub a stabilire la connessione verso l'esterno, non viceversa) —
+  non ancora implementato. Da riprendere insieme al VPN quando l'utente
+  avrà l'hardware pronto (rimandato in coda su sua richiesta).
 - **Priorità risorse dinamica per i download**: oggi il limite di banda
   del Download Manager è statico (un valore configurato una volta). La
   spec (§32) implica una riduzione dinamica quando streaming/backup sono
