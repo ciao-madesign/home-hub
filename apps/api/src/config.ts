@@ -53,6 +53,10 @@ export const config = {
   // Priorità minima rispetto a streaming/backup (§32): limite di banda
   // globale sempre applicato. 0 = nessun limite.
   downloadMaxRateKbps: Number(env("HUB_DOWNLOAD_MAX_RATE_KBPS", "8000")),
+  // Limite ridotto applicato quando c'è una riproduzione Jellyfin attiva
+  // O un backup in corso (§32, priorità dinamica — vedi lib/priority.ts).
+  // 0 = disattiva la riduzione dinamica, resta sempre downloadMaxRateKbps.
+  downloadThrottledRateKbps: Number(env("HUB_DOWNLOAD_THROTTLED_RATE_KBPS", "1000")),
 
   // Gaming (§10). Timeout del probe di stato di un PC remoto (ms) e
   // mappa piattaforma → comando emulatore, sovrascrivibile per adattarla
@@ -68,11 +72,13 @@ export const config = {
   backupRoot: envOptional("HUB_BACKUP_ROOT"),
   backupIntervalHours: Number(env("HUB_BACKUP_INTERVAL_HOURS", "24")),
   // Priorità minima rispetto allo streaming, media rispetto ai download
-  // (§32): stessa semplificazione già adottata per il Download Manager
-  // (limite statico configurabile, non ancora legato dinamicamente
-  // all'attività di streaming in corso — vedi proposte aperte in
-  // docs/SPECIFICHE.md). 0 = nessun limite.
+  // (§32): limite di banda sempre applicato. 0 = nessun limite.
   backupMaxRateKbps: Number(env("HUB_BACKUP_MAX_RATE_KBPS", "0")),
+  // Limite ridotto applicato quando c'è una riproduzione Jellyfin attiva
+  // (§32, priorità dinamica — vedi lib/priority.ts). Il backup NON cede
+  // priorità ai download (è "media", i download sono "minima"), solo
+  // allo streaming. 0 = disattiva la riduzione dinamica.
+  backupThrottledRateKbps: Number(env("HUB_BACKUP_THROTTLED_RATE_KBPS", "1000")),
   // Età massima (ore) oltre la quale un backup non è più considerato
   // "recente e valido" ai fini della guardia per operazioni rischiose (§5).
   backupRecentMaxAgeHours: Number(env("HUB_BACKUP_RECENT_MAX_AGE_HOURS", "48")),
@@ -141,6 +147,13 @@ export const config = {
   watchdogIntervalSeconds: Number(env("HUB_WATCHDOG_INTERVAL_SECONDS", "60")),
   watchdogFailuresBeforeRestart: Number(env("HUB_WATCHDOG_FAILURES_BEFORE_RESTART", "3")),
   watchdogMaxRestartAttempts: Number(env("HUB_WATCHDOG_MAX_RESTART_ATTEMPTS", "3")),
+
+  // Priorità di banda dinamica (§32, lib/priority.ts): ogni quanti secondi
+  // interrogare Jellyfin /Sessions per sapere se c'è una riproduzione
+  // attiva. Un valore basso reagisce prima all'inizio/fine di uno
+  // streaming, ma interroga Jellyfin più spesso — 10s è lo stesso ordine
+  // di grandezza già usato per il polling dello stato di sistema lato web.
+  streamingCheckIntervalSeconds: Number(env("HUB_STREAMING_CHECK_INTERVAL_SECONDS", "10")),
 
   // Spegnimento sicuro da Web App (§34). L'utente di sistema dell'Hub API
   // (non root, §26) necessita di un permesso sudo mirato — vedi

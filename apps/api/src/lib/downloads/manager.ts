@@ -1,11 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "../../config.js";
-import { startTorrentDownload } from "./torrent.js";
+import { startTorrentDownload, updateTorrentThrottle } from "./torrent.js";
 import { startYtDlpDownload } from "./ytdlp.js";
 import * as store from "./store.js";
 import type { DownloadKind, DownloadRow } from "./store.js";
 import type { EngineCallbacks, EngineHandle } from "./types.js";
+import { effectiveDownloadRateKbps } from "../priority.js";
+import { isBackupRunning } from "../storage/backup.js";
 
 export class DownloadsError extends Error {
   constructor(
@@ -74,7 +76,7 @@ function startJob(row: DownloadRow): void {
   const dir = downloadsRoot();
   const handle =
     row.kind === "url"
-      ? startYtDlpDownload(row.source, dir, callbacks)
+      ? startYtDlpDownload(row.source, dir, callbacks, effectiveDownloadRateKbps(isBackupRunning()))
       : startTorrentDownload(row.source, dir, callbacks);
 
   activeHandles.set(row.id, handle);
@@ -144,4 +146,17 @@ export function getDownloadsSummary(): { active: number; errored: number } {
 export function bootstrapDownloads(): void {
   store.resetStaleDownloadingRows();
   processQueue();
+  bootstrapDynamicTorrentThrottle();
+}
+
+/**
+ * A differenza di yt-dlp (limite deciso una volta sola al lancio del
+ * processo, vedi ytdlp.ts), WebTorrent può cambiare limite a caldo:
+ * un torrent già in corso quando inizia uno streaming Jellyfin si
+ * rallenta davvero, non solo i nuovi download avviati dopo (§32).
+ */
+function bootstrapDynamicTorrentThrottle(): void {
+  const apply = () => updateTorrentThrottle(effectiveDownloadRateKbps(isBackupRunning()));
+  apply();
+  setInterval(apply, config.streamingCheckIntervalSeconds * 1000).unref();
 }

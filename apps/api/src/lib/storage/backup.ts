@@ -3,11 +3,12 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
-import { PassThrough, Transform } from "node:stream";
+import { Transform } from "node:stream";
 import { DatabaseSync } from "node:sqlite";
 import { config } from "../../config.js";
 import { getDb } from "../../db/index.js";
 import { parseSqliteTimestamp } from "../sqliteDate.js";
+import { effectiveBackupRateKbps } from "../priority.js";
 import {
   createBackupRun,
   getBackupRun,
@@ -65,12 +66,30 @@ async function buildManifest(): Promise<ManifestEntry[]> {
 
 // --- Copia con limite di banda e verifica di integrità ----------------------
 
-function throttle(maxBytesPerSec: number): Transform | PassThrough {
-  if (maxBytesPerSec <= 0) return new PassThrough();
+/** Limite di banda fisso, o rivalutato ad ogni chiamata per un limite che può cambiare mentre la copia è in corso (§32). */
+type RateSource = number | (() => number);
+
+function resolveRate(rate: RateSource): number {
+  return typeof rate === "function" ? rate() : rate;
+}
+
+/**
+ * A differenza del limite dei download (fisso al lancio del processo
+ * yt-dlp, vedi lib/downloads/ytdlp.ts), qui il limite può essere una
+ * funzione rivalutata ad ogni finestra da 1s: una copia di file grande
+ * già in corso quando inizia uno streaming Jellyfin si rallenta
+ * davvero a metà, non solo le copie avviate dopo (§32).
+ */
+function throttle(rateSource: RateSource): Transform {
   let windowStart = Date.now();
   let windowBytes = 0;
   return new Transform({
     async transform(chunk: Buffer, _enc, cb) {
+      const maxBytesPerSec = resolveRate(rateSource);
+      if (maxBytesPerSec <= 0) {
+        cb(null, chunk);
+        return;
+      }
       const elapsed = Date.now() - windowStart;
       if (elapsed >= 1000) {
         windowStart = Date.now();
@@ -130,7 +149,7 @@ function tally(t: CopyTally, result: { outcome: CopyOutcome; bytes: number }): v
  * (dest resta quello del run precedente, o assente): il file rientrerà nel
  * prossimo run, mai in quello già in corso (§5).
  */
-async function copyVerified(src: string, dest: string, maxBytesPerSec: number): Promise<{
+async function copyVerified(src: string, dest: string, maxBytesPerSec: RateSource): Promise<{
   outcome: CopyOutcome;
   bytes: number;
 }> {
@@ -261,7 +280,7 @@ async function executeBackup(trigger: BackupTrigger): Promise<BackupRunRow> {
 
     for (const entry of manifest) {
       const dest = path.join(backupRoot, entry.destRelPath);
-      tally(t, await copyVerified(entry.srcAbsPath, dest, config.backupMaxRateKbps * 1024));
+      tally(t, await copyVerified(entry.srcAbsPath, dest, () => effectiveBackupRateKbps() * 1024));
     }
 
     try {

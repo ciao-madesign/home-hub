@@ -18,6 +18,19 @@ function getClient(): WebTorrent {
 }
 
 /**
+ * Priorità di banda dinamica (§32): a differenza di yt-dlp (limite fisso
+ * al lancio del processo, non modificabile a caldo — vedi ytdlp.ts),
+ * WebTorrent espone `throttleDownload()` come metodo richiamabile in
+ * qualunque momento sul client condiviso — verificato che `-1` disattiva
+ * davvero il limite (non solo lo azzera). Non forza la creazione del
+ * client se non esiste ancora nessun torrent attivo.
+ */
+export function updateTorrentThrottle(rateKbps: number): void {
+  if (!sharedClient) return;
+  sharedClient.throttleDownload(rateKbps > 0 ? rateKbps * 1024 : -1);
+}
+
+/**
  * Motore torrent (§12) basato sulla libreria WebTorrent, embedded
  * nell'Hub API — nessun servizio esterno separato da orchestrare.
  * Accetta magnet URI o percorso di un file .torrent caricato in precedenza

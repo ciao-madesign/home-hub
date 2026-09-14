@@ -28,6 +28,7 @@ import { bootstrapDdnsUpdater } from "./lib/network/ddns.js";
 import { bootstrapServiceWatchdog } from "./lib/serviceWatchdog.js";
 import { vpnRoutes } from "./routes/vpn.js";
 import { bootstrapVpn } from "./lib/network/vpn.js";
+import { bootstrapPriorityMonitor } from "./lib/priority.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -69,6 +70,7 @@ async function main() {
   bootstrapDdnsUpdater();
   bootstrapServiceWatchdog();
   bootstrapVpn();
+  bootstrapPriorityMonitor();
 
   await app.listen({ port: config.port, host: config.host });
 }

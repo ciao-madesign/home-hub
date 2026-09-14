@@ -7,11 +7,21 @@ import type { EngineCallbacks, EngineHandle } from "./types.js";
  * Motore per i download "normali" da URL (§12), usando yt-dlp come da
  * decisione in docs/EXTERNAL_TOOLS.md. Pausa/ripresa avvengono con
  * SIGSTOP/SIGCONT: lo stesso processo resta vivo, nessuna riesecuzione.
+ *
+ * `maxRateKbps` è deciso dal chiamante (vedi lib/priority.ts, §32) invece
+ * di leggere `config.downloadMaxRateKbps` qui direttamente: yt-dlp non
+ * supporta un cambio di `--limit-rate` a caldo su un processo già avviato
+ * (a differenza di WebTorrent, vedi torrent.ts), quindi la priorità
+ * dinamica per un download da URL può applicarsi solo al lancio del
+ * processo — resta fissa per tutta la vita di quel download, anche
+ * attraverso una pausa/ripresa (limitazione nota, documentata in
+ * docs/SPECIFICHE.md).
  */
 export function startYtDlpDownload(
   source: string,
   destDir: string,
   callbacks: EngineCallbacks,
+  maxRateKbps: number,
 ): EngineHandle {
   const args = [
     source,
@@ -21,8 +31,8 @@ export function startYtDlpDownload(
     "-o",
     path.join(destDir, "%(title)s.%(ext)s"),
   ];
-  if (config.downloadMaxRateKbps > 0) {
-    args.push("--limit-rate", `${config.downloadMaxRateKbps}K`);
+  if (maxRateKbps > 0) {
+    args.push("--limit-rate", `${maxRateKbps}K`);
   }
 
   const proc = spawn(config.ytdlpPath, args, { stdio: ["ignore", "pipe", "pipe"] });

@@ -303,3 +303,21 @@ export async function searchMoviesAndSeries(term: string): Promise<MediaSearchRe
     type: item.Type === "Series" ? "series" : "movie",
   }));
 }
+
+interface JfSession {
+  NowPlayingItem?: unknown;
+  PlayState?: { IsPaused?: boolean };
+}
+
+/**
+ * Priorità di banda dinamica (§32): una sessione con una riproduzione
+ * attiva e non in pausa conta come "streaming in corso" — usato per
+ * ridurre temporaneamente il limite di banda di Download Manager e
+ * Backup, che hanno priorità più bassa. GET /Sessions restituisce anche
+ * le sessioni inattive: il segnale affidabile è la presenza di
+ * NowPlayingItem, non un campo "attivo" a sé.
+ */
+export async function isStreamingActive(): Promise<boolean> {
+  const sessions = await jf<JfSession[]>("/Sessions");
+  return sessions.some((s) => s.NowPlayingItem && !s.PlayState?.IsPaused);
+}
