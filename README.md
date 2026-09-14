@@ -130,9 +130,12 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   utente (copre il recupero password via procedura locale, §25). DDNS
   (provider DuckDNS) con aggiornamento periodico dell'IP pubblico. HTTPS
   automatico via un servizio Caddy opzionale (Let's Encrypt), che non
-  tocca l'accesso LAN esistente. **Non implementato**: port forwarding
-  automatico (va aperto a mano sul router, vedi "Deploy" sotto), tunnel
-  di fallback — vedi `docs/SPECIFICHE.md`.
+  tocca l'accesso LAN esistente. **Tunnel di fallback gratuito**
+  (Cloudflare Tunnel) per chi non può aprire porte sul router (es.
+  CGNAT): nessuna porta da inoltrare, la connessione parte dall'Hub
+  verso Cloudflare — stessa protezione degli endpoint LAN-only del
+  Caddy per HTTPS, vedi "Deploy" sotto. **Non implementato**: port
+  forwarding automatico (va aperto a mano sul router).
 - **Rete — VPN personale WireGuard** (§2, quarta e ultima parte della
   Fase 9, disattivata di default): ogni utente gestisce i propri
   dispositivi in self-service (un profilo "solo Hub" split-tunnel e uno
@@ -208,11 +211,15 @@ git veri creati apposta (fast-forward riuscito quando possibile, rifiuto
 sicuro — nessuna corruzione — quando la storia locale è divergente); il
 riavvio del servizio via sudo e la ricostruzione dei container Docker non
 sono verificabili in questo ambiente (nessun systemd/demone Docker
-reale).
+reale). Tunnel di fallback (Cloudflare Tunnel): il blocco di sicurezza
+di `Caddyfile.tunnel` (`/api/profiles*`, `/api/setup/*`) verificato per
+davvero con un'istanza Caddy reale contro un backend fittizio (403 sui
+percorsi bloccati, proxy funzionante su tutto il resto) — non
+verificabile in questo ambiente un tunnel Cloudflare reale (serve un
+account/dominio Cloudflare) né `cloudflared` stesso.
 
 Non ancora implementato: standby/wake automatico, port forwarding
-automatico, tunnel di fallback per chi non può aprire porte (es. CGNAT),
-ricerca globale su Musica (ancora uno stub), avvio sessioni
+automatico, ricerca globale su Musica (ancora uno stub), avvio sessioni
 Sunshine/Moonlight, distribuzione multi-disco per Games/Downloads/Photos
 (il File Manager ce l'ha, vedi sopra). Vedi la roadmap completa e la
 checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
@@ -358,6 +365,34 @@ Per accedere all'Hub da fuori casa serve, in questo ordine:
    ```
    Da quel momento `https://<il-tuo-dominio>` è raggiungibile da
    Internet; l'accesso LAN su `HUB_WEB_PORT` non cambia.
+
+**Se il punto 2 (port forwarding) non è un'opzione** — router che non lo
+permette, o **CGNAT** (probabile con provider FWA come EOLO, vedi
+`docs/SPECIFICHE.md` §3: verifica confrontando l'IP pubblico mostrato dal
+router con quello visto da un dispositivo su rete mobile — se diversi,
+CGNAT confermato) — salta i punti 2-3 e usa invece il **tunnel gratuito**:
+
+1. Crea un account gratuito su [Cloudflare](https://dash.cloudflare.com)
+   (non serve un dominio a pagamento: Cloudflare ne offre uno gratuito
+   per il tunnel, o puoi collegarne uno tuo se ne hai già uno gestito lì).
+2. Vai su [one.dash.cloudflare.com](https://one.dash.cloudflare.com) →
+   Networks → Tunnels → "Create a tunnel" → tipo "Cloudflared". Dagli un
+   nome (es. "home-hub") e copia il **token** mostrato nel passo
+   "Install and run a connector".
+3. Nello stesso tunnel, aggiungi un **Public Hostname**: il sottodominio
+   che vuoi usare, servizio "HTTP", indirizzo `caddy-tunnel:8080` (non
+   `web:80` — vedi il commento di sicurezza in `infra/docker-compose.yml`
+   per il perché).
+4. Imposta `HUB_CLOUDFLARE_TUNNEL_TOKEN` in `infra/.env` con il token del
+   passo 2, poi:
+   ```bash
+   cd /opt/home-hub/infra
+   docker compose --profile remote-tunnel up -d
+   ```
+   Da quel momento l'hostname scelto al punto 3 è raggiungibile da
+   Internet — **nessuna porta da aprire sul router**, perché la
+   connessione parte dall'Hub verso Cloudflare, non il contrario.
+   Sempre gratuito per questo uso.
 
 ### 4. VPN personale WireGuard (opzionale, §2 in docs/SPECIFICHE.md)
 

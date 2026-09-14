@@ -1,0 +1,13 @@
+:8080 {
+	# Stessa protezione del Caddyfile principale (vedi lì per il
+	# ragionamento completo): indispensabile anche qui, perché cloudflared
+	# inoltra tutto il traffico ricevuto dal tunnel a questo servizio, che
+	# diventa quindi l'unico punto che decide cosa può restare LAN-only.
+	# Nessun TLS qui: Cloudflare lo termina già al proprio edge, e questa
+	# porta non è mai pubblicata sull'host (solo cloudflared, sulla stessa
+	# rete Docker, può raggiungerla) — vedi infra/docker-compose.yml.
+	@lanOnly path /api/profiles* /api/setup/*
+	respond @lanOnly 403
+
+	reverse_proxy web:80
+}
