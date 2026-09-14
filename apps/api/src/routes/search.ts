@@ -1,12 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { isJellyfinConfigured, searchMoviesAndSeries } from "../lib/jellyfin.js";
+import { isImmichConfigured, searchPhotosByFileName } from "../lib/immich.js";
 import { listGames } from "../lib/gaming/store.js";
 import { searchByName } from "../lib/files.js";
 import { requireAuth } from "../plugins/auth.js";
 
 export interface SearchResultItem {
-  type: "movie" | "series" | "game" | "file";
+  type: "movie" | "series" | "game" | "file" | "photo";
   id: string;
   title: string;
   subtitle: string | null;
@@ -18,12 +19,13 @@ const querySchema = z.object({ q: z.string().trim().min(1).max(120) });
 /**
  * Ricerca globale unificata (§16): un'unica barra interroga in parallelo
  * ogni sezione "searchable" (vedi nav.ts). Ogni fonte è indipendente: se
- * Jellyfin non è raggiungibile la ricerca continua comunque sulle altre
- * (§31, nessun errore fatale) — semplicemente quella fonte non contribuisce
- * risultati. Foto/Musica non ancora incluse: Immich richiederebbe la
- * ricerca "smart" (machine learning, disattivata di default per
- * l'hardware iniziale, §3) o un match per nome file poco utile in
- * pratica; Musica è ancora uno stub — vedi docs/SPECIFICHE.md.
+ * Jellyfin/Immich non sono raggiungibili la ricerca continua comunque
+ * sulle altre (§31, nessun errore fatale) — semplicemente quella fonte
+ * non contribuisce risultati. Foto: match per nome file (non la ricerca
+ * "smart" di Immich, ML, disattivata di default per l'hardware iniziale,
+ * §3) — meno precisa ma senza requisiti hardware aggiuntivi, decisione
+ * dell'utente. Musica resta esclusa: è ancora uno stub, non ha ancora
+ * contenuti da cercare — vedi docs/SPECIFICHE.md.
  */
 export async function searchRoutes(app: FastifyInstance) {
   app.get("/api/search", { preHandler: requireAuth }, async (req, reply) => {
@@ -33,9 +35,12 @@ export async function searchRoutes(app: FastifyInstance) {
     const userId = req.auth!.user.id;
     const needle = q.toLowerCase();
 
-    const [media, games, sharedFiles, privateFiles] = await Promise.all([
+    const [media, photos, games, sharedFiles, privateFiles] = await Promise.all([
       isJellyfinConfigured()
         ? searchMoviesAndSeries(q).catch(() => [])
+        : Promise.resolve([]),
+      isImmichConfigured()
+        ? searchPhotosByFileName(q).catch(() => [])
         : Promise.resolve([]),
       listGames(),
       searchByName("shared", userId, q).catch(() => []),
@@ -43,6 +48,10 @@ export async function searchRoutes(app: FastifyInstance) {
     ]);
 
     const results: SearchResultItem[] = [];
+
+    for (const photo of photos) {
+      results.push({ type: "photo", id: photo.id, title: photo.fileName, subtitle: null, url: "/foto" });
+    }
 
     for (const item of media) {
       results.push({

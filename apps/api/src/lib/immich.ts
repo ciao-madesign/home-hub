@@ -176,3 +176,18 @@ export async function searchTimeline(
     nextPage: data.assets.nextPage,
   };
 }
+
+/**
+ * Ricerca globale (§16): match per nome file invece della ricerca "smart"
+ * di Immich (ML, disattivata di default per l'hardware iniziale, §3) —
+ * decisione dell'utente, meno precisa ma senza requisiti hardware
+ * aggiuntivi. Stesso endpoint metadata già usato per la timeline, con
+ * `originalFileName` come filtro invece di `type`.
+ */
+export async function searchPhotosByFileName(term: string): Promise<PhotoAsset[]> {
+  const data = await im<ImSearchResponse>("/api/search/metadata", {
+    method: "POST",
+    body: { originalFileName: term, size: 20 },
+  });
+  return data.assets.items.map(toAsset);
+}

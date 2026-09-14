@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, type SearchResultItem } from "../api/client";
-import { IconFilm, IconFolder, IconGamepad, IconTv } from "../components/icons";
+import { IconFilm, IconFolder, IconGamepad, IconImage, IconTv } from "../components/icons";
 
 const TYPE_LABELS: Record<SearchResultItem["type"], string> = {
   movie: "Film",
   series: "Serie",
+  photo: "Foto",
   game: "Giochi",
   file: "File",
 };
@@ -13,11 +14,12 @@ const TYPE_LABELS: Record<SearchResultItem["type"], string> = {
 const TYPE_ICONS: Record<SearchResultItem["type"], typeof IconFilm> = {
   movie: IconFilm,
   series: IconTv,
+  photo: IconImage,
   game: IconGamepad,
   file: IconFolder,
 };
 
-const TYPE_ORDER: SearchResultItem["type"][] = ["movie", "series", "game", "file"];
+const TYPE_ORDER: SearchResultItem["type"][] = ["movie", "series", "photo", "game", "file"];
 
 export function Search() {
   const [params] = useSearchParams();

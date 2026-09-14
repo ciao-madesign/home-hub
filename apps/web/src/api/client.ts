@@ -432,7 +432,7 @@ export interface AllSessionEntry extends SessionEntry {
 }
 
 export interface SearchResultItem {
-  type: "movie" | "series" | "game" | "file";
+  type: "movie" | "series" | "game" | "file" | "photo";
   id: string;
   title: string;
   subtitle: string | null;
