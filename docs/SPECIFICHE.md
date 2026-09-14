@@ -200,6 +200,31 @@ servizio Caddy opzionale (`docker compose --profile remote-https`),
 reverse proxy con certificato Let's Encrypt automatico verso la Web App
 esistente, senza toccare l'accesso LAN — non verificabile end-to-end in
 questo ambiente (nessun dominio pubblico/router reale).
+
+🔴 **Bug di sicurezza trovato e corretto (revisione dedicata, vedi
+sotto)**: appena Caddy veniva acceso, l'intero `/api/` di nginx restava
+raggiungibile da Internet senza alcuna distinzione LAN/remoto — inclusi
+`GET /api/profiles` (elenco utenti, chi è admin) e
+`POST /api/profiles/:id/select` (crea una sessione con pieni permessi
+**senza password**, per design corretto solo per la LAN, §21). Chiunque
+scoprisse il dominio pubblico poteva ottenere accesso admin completo
+senza mai fornire una password. Stesso problema per `/api/setup/*`
+prima che il wizard fosse completato (corsa a crearsi un proprio account
+admin). Corretto in `infra/Caddyfile`: i percorsi `/api/profiles*` e
+`/api/setup/*` rispondono 403 prima del `reverse_proxy`, l'unico varco
+verso l'esterno per il traffico remoto. Non è una difesa in profondità
+completa: protegge solo la via ufficiale (Caddy sulla 443) — se la
+porta 80/`HUB_WEB_PORT` finisse comunque esposta su Internet (contro le
+istruzioni di deploy, mai aggiornate ad automatizzare questo controllo)
+il blocco verrebbe aggirato, perché nginx stesso non distingue
+LAN da remoto. Non è stato aggiunto un blocco anche lato nginx/Hub API:
+un filtro per IP in nginx sarebbe fragile (il traffico che arriva da
+Caddy attraversa comunque la rete Docker interna, anch'essa a indirizzi
+privati, indistinguibile in modo affidabile dalla vera LAN di casa senza
+assunzioni sulla subnet) — la barriera corretta, coerente con l'intero
+disegno del deploy (porta 80 mai esposta, solo la 443 verso Caddy), resta
+quella a livello di Caddy. Vedi anche l'avviso rafforzato in
+`infra/docker-compose.yml` e nel README "Deploy" §3.
 ⬜ Da fare: port forwarding automatico (UPnP/NAT-PMP) — per ora
 documentato come passo manuale sul router (vedi README "Deploy");
 tunnel fallback per router che non supportano il port forwarding —

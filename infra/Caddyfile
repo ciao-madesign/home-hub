@@ -3,5 +3,19 @@
 }
 
 {$HUB_PUBLIC_DOMAIN} {
+	# Endpoint pensati SOLO per la LAN (§21: nessuna password richiesta,
+	# qualunque dispositivo in rete locale è considerato autorizzato) —
+	# mai raggiungibili da qui. Senza questo blocco, chiunque conosca il
+	# dominio pubblico potrebbe leggere GET /api/profiles (elenco utenti,
+	# incluso chi è admin) e poi POST /api/profiles/:id/select per
+	# ottenere una sessione con pieni permessi senza mai fornire una
+	# password — bug reale trovato in revisione di sicurezza, vedi
+	# docs/SPECIFICHE.md. Stesso discorso per /api/setup/*: prima che il
+	# wizard sia completato non richiede autenticazione (nessun utente
+	# esiste ancora), quindi da qui potrebbe correre a creare un proprio
+	# account admin prima del legittimo proprietario.
+	@lanOnly path /api/profiles* /api/setup/*
+	respond @lanOnly 403
+
 	reverse_proxy web:80
 }

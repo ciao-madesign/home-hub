@@ -93,6 +93,17 @@ services:
   # verso "web" — l'accesso LAN su HUB_WEB_PORT resta invariato, nessun
   # conflitto di porta. Pubblica solo 443 (non 80) di proposito: forza la
   # verifica TLS-ALPN-01, che non richiede aprire anche la 80 sul router.
+  #
+  # IMPORTANTE (sicurezza): non inoltrare MAI la porta 80/HUB_WEB_PORT dal
+  # router verso questa macchina, solo la 443 verso Caddy. "web" (nginx)
+  # instrada l'intero /api/ senza distinguere LAN da Internet, e alcuni
+  # endpoint (selezione profilo, wizard di primo avvio) non richiedono
+  # password apposta per la LAN (§21) — raggiungibili da Internet
+  # permetterebbero un accesso admin completo senza password. Il
+  # Caddyfile blocca già quei percorsi per la via ufficiale (Caddy), ma
+  # quel blocco non esiste su nginx: se la 80 finisse esposta lo
+  # aggirerebbe. Vedi la revisione di sicurezza in docs/SPECIFICHE.md.
+  #
   # Non verificato contro Let's Encrypt reale in questo ambiente (nessun
   # dominio pubblico/router reale disponibile) — vedi docs/SPECIFICHE.md.
   caddy:

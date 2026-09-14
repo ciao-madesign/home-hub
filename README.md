@@ -315,9 +315,17 @@ Per accedere all'Hub da fuori casa serve, in questo ordine:
    (`sudo systemctl restart home-hub-api`): l'Hub aggiorna da solo l'IP
    ogni `HUB_DDNS_INTERVAL_MINUTES` minuti.
 2. **Port forwarding sul router** (manuale in V1, non automatizzato):
-   inoltra la porta 443 del router verso l'IP del Wyse sulla LAN,
-   porta 443. La procedura cambia da router a router (di solito
+   inoltra **solo** la porta 443 del router verso l'IP del Wyse sulla
+   LAN, porta 443. La procedura cambia da router a router (di solito
    "Port Forwarding"/"Virtual Server" nelle impostazioni).
+   **Non inoltrare mai la porta 80/`HUB_WEB_PORT`**: quella è la porta
+   di nginx, pensata solo per la LAN, e alcuni endpoint (selezione
+   profilo, wizard di primo avvio) non richiedono password apposta
+   perché presuppongono un accesso locale (§21) — esposti su Internet
+   permetterebbero un accesso admin completo senza password (bug reale
+   trovato in revisione di sicurezza, corretto bloccando quei percorsi
+   nel Caddyfile — ma solo per chi passa da Caddy sulla 443; se la 80
+   finisse comunque esposta quel blocco non la protegge).
 3. **HTTPS**: avvia il servizio Caddy opzionale, che ottiene da solo un
    certificato Let's Encrypt per il dominio DDNS:
    ```bash
