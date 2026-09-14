@@ -128,12 +128,25 @@ priorità dinamica del backup legata all'attività di streaming reale
 statico configurabile, vedi proposte aperte §3).
 
 ### Fase 9 — Rete e accesso remoto
-⬜ Non iniziata. Ordine di lavoro deciso con l'utente: prima discovery
-locale/`.local`/QR, setup Wi-Fi, wizard di primo avvio, accesso remoto
-HTTPS + DDNS/tunnel, sessioni/revoca, recupero password (il backend
-supporta già login remoto via password — manca l'infrastruttura di
-rete/HTTPS/DDNS attorno) — **poi, per ultima**, il VPN server personale
-(WireGuard, aggiunto allo scope su richiesta esplicita, vedi §2): è la
+🟡 Fatto (primo blocco — discovery locale, §21): annuncio mDNS/DNS-SD
+(`<hostname>.local`, default `home-hub.local`) via `bonjour-service`,
+nessun `avahi-daemon` richiesto — verificato per davvero con un client
+mDNS separato sullo stesso loopback (risoluzione dell'hostname e SRV
+record con la porta corretta della Web App, non quella interna dell'Hub
+API). Endpoint pubblico `/api/network/info` (IP locali, hostname/URL
+`.local`) mostrato con QR code nella schermata di selezione profilo
+(pre-login, per farsi scoprire da un secondo dispositivo) e nella pagina
+Sistema. Gestione Wi-Fi (scan/connect) via `nmcli`/NetworkManager,
+riservata agli admin, con degrado esplicito a "non disponibile" quando
+`nmcli` manca (verificato: questo ambiente non ha NetworkManager). WPS
+gestito lato UX (pulsante sul router + rilevamento stato) invece di uno
+specifico comando `nmcli`, la cui sintassi WPS non è standardizzata —
+vedi decisione in §2.
+⬜ Da fare: wizard di primo avvio, accesso remoto HTTPS + DDNS/tunnel,
+sessioni/revoca, recupero password (il backend supporta già login
+remoto via password — manca l'infrastruttura di rete/HTTPS/DDNS
+attorno) — **poi, per ultimo**, il VPN server personale (WireGuard,
+aggiunto allo scope su richiesta esplicita, vedi §2): è la
 parte più delicata dal punto di vista della sicurezza fatta finora,
 costruita a valle del resto della fase.
 
@@ -236,6 +249,18 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   l'unit systemd) è stato giudicato troppo rischioso per un'operazione
   self-service in V1; vanno ricopiati a mano durante il recovery guidato
   (§35).
+- **Fase 9 — WPS senza un comando `nmcli` dedicato**: `nmcli` non ha una
+  sintassi WPS standardizzata/affidabile tra versioni, e non è comunque
+  verificabile in questo ambiente (nessun hardware Wi-Fi). Invece di
+  scriptare un comando incerto, il WPS è gestito lato UX: l'utente preme
+  il pulsante fisico sul router (che fa la sua parte via il sistema
+  operativo/NetworkManager in autonomia) e la Web App si limita a
+  rilevare la connessione risultante via `getWifiStatus`, già necessario
+  per mostrare lo stato Wi-Fi corrente.
+- **Fase 9 — mDNS senza avahi-daemon**: `bonjour-service` (libreria Node
+  pura) invece di shellare `avahi-publish-service`, perché avahi non è
+  presente di default né sul Wyse né in questo ambiente di sviluppo —
+  vedi `docs/EXTERNAL_TOOLS.md`.
 - **Fase 9 — aggiunto un VPN server personale (WireGuard), ultima
   funzione della fase**: richiesta esplicita dell'utente, non presente
   in SPEC_V1/V2. Obiettivo: potersi connettere da remoto e uscire su

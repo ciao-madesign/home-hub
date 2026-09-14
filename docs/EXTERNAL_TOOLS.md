@@ -36,6 +36,35 @@ per l'Home Entertainment Hub, in aggiunta a Jellyfin/Immich (vedi
   validare input utente prima di richieste server-side. Da monitorare per
   un aggiornamento upstream di `bittorrent-tracker`.
 
+## watson-developer-cloud/bonjour-service — DECISIONE: INTEGRATO
+
+- Pubblicazione mDNS/DNS-SD (`_http._tcp`, hostname `.local`) per il
+  discovery locale (§21). Implementazione Node pura: invia/riceve
+  direttamente pacchetti multicast DNS via socket UDP, **non richiede
+  `avahi-daemon`** (assente sul Wyse per default e assente anche in
+  questo ambiente sandbox) — a differenza della strada "shellare
+  `avahi-publish-service`" scartata per questo motivo.
+- Testato per davvero in questo ambiente: annuncio del servizio e
+  interrogazione via un client `multicast-dns` separato sullo stesso
+  loopback (stesso approccio già usato per verificare Local Service
+  Discovery di WebTorrent) — pacchetto ricevuto e risolto correttamente.
+  Non verificata la risoluzione `.local` da parte di client reali
+  (macOS/iOS/Android/Windows) su una LAN reale.
+- Nessuna vulnerabilità nota nella sua dipendenza diretta
+  (`multicast-dns` → `dns-packet`); le vulnerabilità segnalate da
+  `npm audit` in questo workspace sono quelle già note/accettate di
+  WebTorrent (`ip` via `bittorrent-tracker`), non toccano questo pacchetto.
+
+## soldair/node-qrcode — DECISIONE: INTEGRATO
+
+- Generazione lato client (Web App) del QR code con l'URL locale
+  dell'Hub, per il discovery da un secondo dispositivo (§21). Libreria
+  pura JS, nessuna dipendenza nativa, genera direttamente una data URL
+  PNG da un `<img>` — non è una libreria UI/di componenti (non in
+  contrasto con "zero dipendenze UI" di `CLAUDE.md`, che riguarda
+  framework di styling/componenti come Tailwind/MUI, non utility mirate
+  come questa o come `webtorrent` lato API).
+
 ## Sonarr/Sonarr — DECISIONE: STUDIARE COME RIFERIMENTO, NON INTEGRARE
 
 - Utile come riferimento architetturale per: automazione libreria, ricerca,

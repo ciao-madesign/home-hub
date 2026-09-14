@@ -98,4 +98,19 @@ export const config = {
     dockerCompose: path.join(here, "..", "..", "..", "infra", "docker-compose.yml"),
     systemdUnit: path.join(here, "..", "..", "..", "infra", "systemd", "home-hub-api.service"),
   },
+
+  // Rete e setup iniziale (§21/§28). mDNS pubblica <hostname>.local sulla
+  // LAN (nessun avahi-daemon richiesto, vedi docs/EXTERNAL_TOOLS.md);
+  // disattivabile se la rete di destinazione blocca il multicast.
+  mdnsEnabled: env("HUB_MDNS_ENABLED", "true") === "true",
+  mdnsHostname: env("HUB_MDNS_HOSTNAME", "home-hub"),
+  // Porta su cui è raggiungibile la Web App (nginx, non l'Hub API stessa —
+  // stesso valore di HUB_WEB_PORT in infra/.env): è quella che va
+  // pubblicizzata via mDNS/QR, non la porta interna dell'Hub API (§21).
+  webPort: Number(env("HUB_WEB_PORT", "80")),
+
+  // Wi-Fi (§28): richiede NetworkManager (nmcli) sull'host — tipicamente
+  // assente in ambienti di sviluppo/container, degrado esplicito a "non
+  // disponibile" quando manca (§31).
+  nmcliPath: env("HUB_NMCLI_PATH", "nmcli"),
 };

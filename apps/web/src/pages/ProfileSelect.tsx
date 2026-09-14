@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, type Profile } from "../api/client";
+import { api, ApiError, type LocalNetworkInfo, type Profile } from "../api/client";
 import { useProfile } from "../context/ProfileContext";
+import { QrCode } from "../components/QrCode";
 
 export function ProfileSelect() {
   const { selectProfile, login } = useProfile();
@@ -10,12 +11,17 @@ export function ProfileSelect() {
   const [remoteMode, setRemoteMode] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [networkInfo, setNetworkInfo] = useState<LocalNetworkInfo | null>(null);
+  const [showDiscovery, setShowDiscovery] = useState(false);
 
   useEffect(() => {
     api
       .listProfiles()
       .then((res) => setProfiles(res.profiles))
       .catch(() => setError("Impossibile contattare l'Hub API. Verifica la connessione locale."));
+    // Endpoint pubblico (§21): mostra IP/.local/QR anche prima del login,
+    // per farsi scoprire da un secondo dispositivo sulla stessa LAN.
+    api.getNetworkInfo().then(setNetworkInfo).catch(() => {});
   }, []);
 
   async function onSelect(id: string) {
@@ -140,6 +146,41 @@ export function ProfileSelect() {
             Accedi
           </button>
         </form>
+      )}
+
+      {!remoteMode && networkInfo?.primaryUrl && (
+        <>
+          <button
+            onClick={() => setShowDiscovery((v) => !v)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--text-faint)",
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            {showDiscovery ? "Nascondi" : "Connetti da un altro dispositivo"}
+          </button>
+          {showDiscovery && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              <QrCode value={networkInfo.primaryUrl} size={160} />
+              <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
+                Inquadra il QR o apri
+                <br />
+                <strong>{networkInfo.primaryUrl}</strong>
+                {networkInfo.ips.length > 0 && (
+                  <>
+                    <br />
+                    <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
+                      IP: {networkInfo.ips.join(", ")}
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       <button

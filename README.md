@@ -100,6 +100,15 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   Manager assumono ancora un unico disco dati), wizard di recovery
   guidato su hardware nuovo, riapplicazione automatica delle
   configurazioni Hub/Docker ripristinate su un sistema live.
+- **Rete — discovery locale** (§21, prima parte della Fase 9): l'Hub si
+  annuncia sulla LAN come `home-hub.local` via mDNS (`bonjour-service`,
+  nessun `avahi-daemon` richiesto), mostrato con QR code sia nella
+  schermata di selezione profilo (per farsi scoprire da un secondo
+  dispositivo, prima del login) sia nella pagina Sistema. Gestione Wi-Fi
+  (scansione/connessione) per gli admin, via NetworkManager, con
+  degrado esplicito se non disponibile. **Non implementato**: wizard di
+  primo avvio, accesso remoto HTTPS/DDNS/tunnel, VPN personale — vedi
+  `docs/SPECIFICHE.md`.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -115,15 +124,20 @@ PC reale (nessun target disponibile in questo ambiente). Storage/Backup
 validato a fondo su filesystem reale (copia con verifica di integrità,
 skip incrementale, ripristino con recupero effettivo del contenuto); SMART
 verificato solo nel percorso di degrado (nessun device reale con
-`smartctl` disponibile in questo ambiente).
+`smartctl` disponibile in questo ambiente). mDNS (`.local`/QR) verificato
+per davvero con un client separato sullo stesso loopback; risoluzione da
+parte di client reali (macOS/iOS/Android/Windows) su una LAN reale non
+verificata. Wi-Fi verificato solo nel percorso di degrado (nessun
+NetworkManager/hardware Wi-Fi in questo ambiente).
 
-Non ancora implementato: accesso remoto/DDNS/HTTPS, wizard di primo
-avvio, selezione traccia audio multipla, ricerca globale full-text,
-priorità dinamica di download/backup basata sull'attività di streaming
-in corso (attualmente un limite di banda statico per entrambi), avvio
-sessioni Sunshine/Moonlight, libreria virtuale multi-disco con
-distribuzione automatica dei nuovi file. Vedi la roadmap completa e la
-checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
+Non ancora implementato: wizard di primo avvio, accesso remoto/DDNS/
+HTTPS, VPN personale, selezione traccia audio multipla, ricerca globale
+full-text, priorità dinamica di download/backup basata sull'attività di
+streaming in corso (attualmente un limite di banda statico per
+entrambi), avvio sessioni Sunshine/Moonlight, libreria virtuale
+multi-disco con distribuzione automatica dei nuovi file. Vedi la
+roadmap completa e la checklist dettagliata in `docs/SPEC_V1.md` §38-39
+e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 

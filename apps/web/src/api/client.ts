@@ -366,6 +366,25 @@ export interface RestoreSummary {
   databaseRestored: boolean;
 }
 
+export interface LocalNetworkInfo {
+  ips: string[];
+  webPort: number;
+  mdnsHostname: string | null;
+  mdnsUrl: string | null;
+  primaryUrl: string | null;
+}
+
+export interface WifiNetwork {
+  ssid: string;
+  signal: number;
+  secured: boolean;
+}
+
+export interface WifiStatus {
+  available: boolean;
+  connectedSsid: string | null;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -534,4 +553,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ confirm: true }),
     }),
+
+  getNetworkInfo: () => request<LocalNetworkInfo>("/network/info"),
+  getWifiStatus: () => request<WifiStatus>("/network/wifi/status"),
+  scanWifi: () => request<{ networks: WifiNetwork[] }>("/network/wifi/scan"),
+  connectWifi: (ssid: string, password: string | null) =>
+    request<{ ok: true }>("/network/wifi/connect", { method: "POST", body: JSON.stringify({ ssid, password }) }),
 };

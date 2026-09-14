@@ -14,6 +14,7 @@
   "dependencies": {
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^10.1.1",
+    "bonjour-service": "^1.4.4",
     "fastify": "^5.2.1",
     "webtorrent": "^3.0.21",
     "zod": "^3.24.1"
