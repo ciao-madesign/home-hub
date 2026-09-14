@@ -6,12 +6,11 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo Fase 10 (Sistema — stato Internet, riavvio
-automatico dei servizi con escalation critica, notifiche, spegnimento
-sicuro). Restano da fare, quando l'utente avrà l'hardware pronto: port
-forwarding/tunnel reale e VPN (Fase 9, rimandati in coda su richiesta
-dell'utente — l'ISP dell'utente, EOLO, è probabilmente dietro CGNAT,
-vedi §3), standby/wake e aggiornamenti autorizzati (Fase 10).
+Ultimo aggiornamento: dopo Fase 10 (Sistema) ed Extra "Web" (collegamenti
+rapidi, fuori roadmap). Restano da fare, quando l'utente avrà l'hardware
+pronto: port forwarding/tunnel reale e VPN (Fase 9, rimandati in coda su
+richiesta dell'utente — l'ISP dell'utente, EOLO, è probabilmente dietro
+CGNAT, vedi §3), standby/wake e aggiornamenti autorizzati (Fase 10).
 
 ---
 
@@ -237,6 +236,17 @@ non affrontato in questa passata).
 ⬜ Richiede hardware reale (Dell Wyse) e servizi reali (Jellyfin/Immich
 non stub). Non eseguibile in questo ambiente.
 
+### Extra — Web (collegamenti rapidi), fuori roadmap
+✅ Richiesta esplicita dell'utente, non presente in SPEC_V1/V2 — vedi §2
+per il ragionamento. Sezione "Web" in sidebar: griglia di collegamenti
+(titolo, URL, colore) gestiti dagli admin, aperti da chiunque nel
+browser reale del dispositivo (nuova scheda), mai incorporati nell'Hub.
+Validazione server-side dello schema URL (solo http/https). Verificato
+per davvero: creazione/validazione via curl (uno schema `javascript:`
+viene rifiutato con 400), e in un browser reale che il collegamento
+generato ha `href` esatto, `target="_blank"` e
+`rel="noopener noreferrer"`.
+
 ---
 
 ## 2. Decisioni e aggiunte rispetto alla specifica originale
@@ -413,6 +423,20 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
   un proprio `setInterval` interno (stesso pattern lazy-scheduler già
   usato per backup/DDNS/mDNS), con uno stato in memoria per contare
   fallimenti consecutivi e tentativi di riavvio per servizio.
+- **Extra — "Web" apre nel browser reale, non incorporato**: richiesta
+  esplicita dell'utente (esempio concreto: guardare La7 in streaming
+  dall'Hub sulla TV). Valutate due strade: (1) incorporare il sito
+  dentro l'Hub via iframe, (2) aprirlo nel browser reale del dispositivo
+  in una nuova scheda. Scelta la (2), perché la (1) nella pratica non
+  funzionerebbe quasi mai: la maggior parte dei siti di streaming
+  imposta header (`X-Frame-Options`/CSP) che bloccano esplicitamente
+  l'incorporamento in un iframe altrui, proprio per evitare questo uso.
+  L'alternativa per aggirarlo — un browser vero renderizzato sul Wyse e
+  trasmesso all'Hub, tipo desktop remoto solo per il browser — è stata
+  scartata: progetto tecnico a sé (paragonabile per complessità a tutto
+  il modulo Gaming), pesante per l'hardware iniziale (Intel J4105, 8 GB
+  RAM, §3), e comunque non garantirebbe la riproduzione su siti con
+  protezioni anti-pirateria che rilevano browser non standard.
 
 ## 3. Proposte aperte / da decidere con l'utente
 

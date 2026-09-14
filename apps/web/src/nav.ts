@@ -5,6 +5,7 @@ import {
   IconFilm,
   IconFolder,
   IconGamepad,
+  IconGlobe,
   IconHardDrive,
   IconHome,
   IconImage,
@@ -33,5 +34,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/file", label: "File", icon: IconFolder, priority: 6, searchable: true },
   { to: "/download", label: "Download", icon: IconDownload, priority: 7, searchable: false },
   { to: "/storage", label: "Storage", icon: IconHardDrive, priority: 8, searchable: false },
-  { to: "/sistema", label: "Sistema", icon: IconActivity, priority: 9, searchable: false },
+  { to: "/web", label: "Web", icon: IconGlobe, priority: 9, searchable: false },
+  { to: "/sistema", label: "Sistema", icon: IconActivity, priority: 10, searchable: false },
 ];

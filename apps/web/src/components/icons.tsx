@@ -107,6 +107,13 @@ export const IconHardDrive = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const IconGlobe = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3c2.5 2.5 4 6 4 9s-1.5 6.5-4 9c-2.5-2.5-4-6-4-9s1.5-6.5 4-9Z" />
+  </Icon>
+);
+
 export const IconLogOut = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4" />

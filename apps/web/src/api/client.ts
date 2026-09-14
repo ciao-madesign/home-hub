@@ -415,6 +415,13 @@ export interface AllSessionEntry extends SessionEntry {
   displayName: string;
 }
 
+export interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+  color: string;
+}
+
 export interface DdnsStatus {
   configured: boolean;
   domain: string | null;
@@ -636,4 +643,14 @@ export const api = {
 
   getDdnsStatus: () => request<DdnsStatus>("/network/ddns/status"),
   updateDdnsNow: () => request<DdnsStatus>("/network/ddns/update", { method: "POST" }),
+
+  listBookmarks: () => request<{ bookmarks: Bookmark[] }>("/bookmarks"),
+  createBookmark: (fields: { title: string; url: string; color: string }) =>
+    request<{ bookmark: Bookmark }>("/bookmarks", { method: "POST", body: JSON.stringify(fields) }),
+  updateBookmark: (id: string, fields: Partial<{ title: string; url: string; color: string }>) =>
+    request<{ bookmark: Bookmark }>(`/bookmarks/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    }),
+  deleteBookmark: (id: string) => request<{ ok: true }>(`/bookmarks/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

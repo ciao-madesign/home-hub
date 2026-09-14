@@ -139,6 +139,12 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   **Non implementato**: standby/wake automatico, aggiornamenti
   dell'Hub con autorizzazione dalla Web App (§33) — per ora si
   aggiorna da riga di comando, vedi "Aggiornamenti" sotto.
+- **Web** (fuori roadmap, richiesta esplicita): sezione con collegamenti
+  rapidi a siti esterni (es. La7 streaming) gestiti dagli admin, aperti
+  nel browser reale del dispositivo — mai incorporati nell'Hub, perché
+  la maggior parte dei siti di streaming blocca l'incorporamento via
+  iframe (vedi `docs/SPECIFICHE.md` per il confronto con l'alternativa
+  di un browser incorporato, scartata).
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
