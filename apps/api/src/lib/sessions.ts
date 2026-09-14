@@ -105,6 +105,82 @@ export function revokeAllSessionsForUser(userId: string): void {
     .run(userId);
 }
 
+/** Pulsante di emergenza (§24): revoca subito ogni sessione remota di ogni utente. */
+export function revokeAllRemoteSessions(): number {
+  const result = getDb()
+    .prepare(
+      "UPDATE sessions SET revoked_at = datetime('now') WHERE origin = 'remote' AND revoked_at IS NULL",
+    )
+    .run();
+  return Number(result.changes);
+}
+
+export interface SessionWithDeviceRow extends SessionRow {
+  device_name: string | null;
+}
+
+function isActive(session: SessionRow): boolean {
+  if (session.revoked_at) return false;
+  return new Date(session.expires_at).getTime() >= Date.now();
+}
+
+export function listActiveSessionsForUser(userId: string): SessionWithDeviceRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT s.*, d.name as device_name FROM sessions s
+       LEFT JOIN devices d ON d.id = s.device_id
+       WHERE s.user_id = ? ORDER BY s.created_at DESC`,
+    )
+    .all(userId) as unknown as SessionWithDeviceRow[];
+  return rows.filter(isActive);
+}
+
+export interface SessionWithUserRow extends SessionWithDeviceRow {
+  username: string;
+  display_name: string;
+}
+
+/** Vista admin (§24): tutte le sessioni attive di tutti gli utenti. */
+export function listAllActiveSessions(): SessionWithUserRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT s.*, d.name as device_name, u.username, u.display_name FROM sessions s
+       LEFT JOIN devices d ON d.id = s.device_id
+       JOIN users u ON u.id = s.user_id
+       ORDER BY s.created_at DESC`,
+    )
+    .all() as unknown as SessionWithUserRow[];
+  return rows.filter(isActive);
+}
+
+export function toSessionDto(row: SessionWithDeviceRow, currentSessionId: string) {
+  return {
+    id: row.id,
+    deviceName: row.device_name,
+    origin: row.origin,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    current: row.id === currentSessionId,
+  };
+}
+
+export function getUserById(id: string): UserRow | null {
+  const row = getDb().prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
+  return row ?? null;
+}
+
+/**
+ * Recupero password (§25), metodo "procedura locale sull'Hub": chi ha
+ * dimenticato la password per l'accesso remoto può sempre accedere in
+ * locale (§21, nessuna password richiesta in LAN) e cambiarla da qui, o
+ * farsela reimpostare da un admin. Il recupero via e-mail non è
+ * implementato (richiederebbe configurare un server SMTP, non ancora
+ * deciso con l'utente — vedi proposte aperte in docs/SPECIFICHE.md).
+ */
+export function setUserPassword(userId: string, passwordHash: string): void {
+  getDb().prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, userId);
+}
+
 export function publicUser(user: UserRow) {
   return {
     id: user.id,

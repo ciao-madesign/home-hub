@@ -113,4 +113,13 @@ export const config = {
   // assente in ambienti di sviluppo/container, degrado esplicito a "non
   // disponibile" quando manca (§31).
   nmcliPath: env("HUB_NMCLI_PATH", "nmcli"),
+
+  // DDNS (§23): provider gratuito di default. DuckDNS scelto per l'API
+  // pubblica estremamente semplice (una GET, nessuna libreria di terze
+  // parti necessaria) — vedi docs/EXTERNAL_TOOLS.md. baseUrl è
+  // sovrascrivibile per puntare a uno stub HTTP nei test.
+  ddnsDomain: envOptional("HUB_DDNS_DOMAIN"), // es. "mio-hub" per mio-hub.duckdns.org
+  ddnsToken: envOptional("HUB_DDNS_TOKEN"),
+  ddnsBaseUrl: env("HUB_DDNS_BASE_URL", "https://www.duckdns.org"),
+  ddnsIntervalMinutes: Number(env("HUB_DDNS_INTERVAL_MINUTES", "15")),
 };

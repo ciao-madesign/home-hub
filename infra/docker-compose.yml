@@ -85,5 +85,31 @@ services:
       - ./data/immich/db:/var/lib/postgresql/data
     networks: [hub]
 
+  # Accesso remoto HTTPS (§22-24), opzionale e disattivato di default:
+  # avviare con `docker compose --profile remote-https up -d`, e prima
+  # impostare HUB_PUBLIC_DOMAIN (es. da DDNS, vedi apps/api/.env.example)
+  # e HUB_ACME_EMAIL in infra/.env. Caddy ottiene/rinnova da solo un
+  # certificato Let's Encrypt e instrada solo l'HTTPS pubblico (443)
+  # verso "web" — l'accesso LAN su HUB_WEB_PORT resta invariato, nessun
+  # conflitto di porta. Pubblica solo 443 (non 80) di proposito: forza la
+  # verifica TLS-ALPN-01, che non richiede aprire anche la 80 sul router.
+  # Non verificato contro Let's Encrypt reale in questo ambiente (nessun
+  # dominio pubblico/router reale disponibile) — vedi docs/SPECIFICHE.md.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: ["remote-https"]
+    ports:
+      - "443:443"
+    environment:
+      HUB_PUBLIC_DOMAIN: ${HUB_PUBLIC_DOMAIN:?imposta HUB_PUBLIC_DOMAIN in infra/.env}
+      HUB_ACME_EMAIL: ${HUB_ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/caddy:/data
+    depends_on:
+      - web
+    networks: [hub]
+
 networks:
   hub:

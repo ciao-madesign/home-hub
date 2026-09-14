@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { getLocalNetworkInfo } from "../lib/network/interfaces.js";
 import { connectWifi, getWifiStatus, listWifiNetworks, WifiError } from "../lib/network/wifi.js";
+import { getDdnsStatus, updateDdns } from "../lib/network/ddns.js";
 import { requireAdmin } from "../plugins/auth.js";
 
 function handleWifiError(err: unknown, reply: FastifyReply): boolean {
@@ -54,5 +55,15 @@ export async function networkRoutes(app: FastifyInstance) {
       if (handleWifiError(err, reply)) return;
       throw err;
     }
+  });
+
+  // DDNS (§23): stato/ultimo aggiornamento, riservato agli admin.
+  app.get("/api/network/ddns/status", { preHandler: requireAdmin }, async () => {
+    return getDdnsStatus();
+  });
+
+  app.post("/api/network/ddns/update", { preHandler: requireAdmin }, async () => {
+    await updateDdns();
+    return getDdnsStatus();
   });
 }

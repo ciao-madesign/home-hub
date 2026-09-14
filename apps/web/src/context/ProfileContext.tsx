@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { api, ApiError, getToken, setToken, type Profile } from "../api/client";
+import { api, ApiError, getToken, setToken, type Profile, type SessionInfo } from "../api/client";
 
 interface ProfileContextValue {
   user: Profile | null;
+  session: SessionInfo | null;
   loading: boolean;
   selectProfile: (id: string) => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
@@ -22,6 +23,7 @@ function deviceName(): string {
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
+  const [session, setSession] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,8 +35,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        const { user: me } = await api.me();
-        if (!cancelled) setUser(me);
+        const { user: me, session: mySession } = await api.me();
+        if (!cancelled) {
+          setUser(me);
+          setSession(mySession);
+        }
       } catch (err) {
         if (err instanceof ApiError) setToken(null);
       } finally {
@@ -49,15 +54,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const selectProfile = useCallback(async (id: string) => {
-    const { token, user: selected } = await api.selectProfile(id, deviceName());
+    const { token, user: selected, session: newSession } = await api.selectProfile(id, deviceName());
     setToken(token);
     setUser(selected);
+    setSession(newSession);
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    const { token, user: loggedIn } = await api.login(username, password, deviceName());
+    const { token, user: loggedIn, session: newSession } = await api.login(username, password, deviceName());
     setToken(token);
     setUser(loggedIn);
+    setSession(newSession);
   }, []);
 
   const logout = useCallback(async () => {
@@ -66,12 +73,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     } finally {
       setToken(null);
       setUser(null);
+      setSession(null);
     }
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, selectProfile, login, logout }),
-    [user, loading, selectProfile, login, logout],
+    () => ({ user, session, loading, selectProfile, login, logout }),
+    [user, session, loading, selectProfile, login, logout],
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

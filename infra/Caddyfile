@@ -1,0 +1,7 @@
+{
+	email {$HUB_ACME_EMAIL}
+}
+
+{$HUB_PUBLIC_DOMAIN} {
+	reverse_proxy web:80
+}

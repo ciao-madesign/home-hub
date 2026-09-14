@@ -3,7 +3,17 @@ import { useSystemStatus } from "../hooks/useSystemStatus";
 import { StatusBadge } from "../components/StatusBadge";
 import { QrCode } from "../components/QrCode";
 import { useProfile } from "../context/ProfileContext";
-import { api, ApiError, type LocalNetworkInfo, type WifiNetwork, type WifiStatus } from "../api/client";
+import {
+  api,
+  ApiError,
+  type AllSessionEntry,
+  type DdnsStatus,
+  type LocalNetworkInfo,
+  type Profile,
+  type SessionEntry,
+  type WifiNetwork,
+  type WifiStatus,
+} from "../api/client";
 
 function formatBytes(bytes: number | null): string {
   if (bytes === null) return "—";
@@ -185,6 +195,73 @@ function WifiPanel() {
   );
 }
 
+function formatDateTime(sqliteTimestamp: string | null): string {
+  if (!sqliteTimestamp) return "—";
+  return new Date(`${sqliteTimestamp.replace(" ", "T")}Z`).toLocaleString("it-IT", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function DdnsPanel() {
+  const [status, setStatus] = useState<DdnsStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api.getDdnsStatus().then(setStatus).catch(() => setStatus(null));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleUpdate() {
+    setBusy(true);
+    try {
+      setStatus(await api.updateDdnsNow());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!status?.configured) {
+    return (
+      <p style={{ fontSize: 13, color: "var(--text-faint)" }}>
+        DDNS non configurato (HUB_DDNS_DOMAIN/HUB_DDNS_TOKEN) — necessario solo per l'accesso da fuori casa con un
+        indirizzo fisso.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 10px" }}>
+        Dominio: <strong>{status.domain}.duckdns.org</strong> — ultimo aggiornamento:{" "}
+        {formatDateTime(status.lastUpdatedAt)} (
+        <span style={{ color: status.lastStatus === "ok" ? "var(--status-normal, #22c55e)" : "var(--status-problem)" }}>
+          {status.lastStatus === "ok" ? "riuscito" : status.lastStatus === "error" ? "fallito" : "mai eseguito"}
+        </span>
+        )
+      </p>
+      <button onClick={handleUpdate} disabled={busy} style={{ ...secondaryButtonStyleLocal }}>
+        {busy ? "Aggiornamento…" : "Aggiorna ora"}
+      </button>
+    </div>
+  );
+}
+
+const secondaryButtonStyleLocal: React.CSSProperties = {
+  padding: "8px 14px",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border)",
+  background: "transparent",
+  color: "var(--text)",
+  fontSize: 13,
+  cursor: "pointer",
+};
+
 function NetworkSection() {
   const { user } = useProfile();
   const [info, setInfo] = useState<LocalNetworkInfo | null>(null);
@@ -217,17 +294,273 @@ function NetworkSection() {
       </div>
 
       {user?.role === "admin" && (
-        <div
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div
+            style={{
+              padding: 16,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border)",
+              background: "var(--bg-card)",
+            }}
+          >
+            <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>Wi-Fi</p>
+            <WifiPanel />
+          </div>
+
+          <div
+            style={{
+              padding: 16,
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border)",
+              background: "var(--bg-card)",
+            }}
+          >
+            <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>DDNS (accesso remoto)</p>
+            <DdnsPanel />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const inputStyleLocal: React.CSSProperties = {
+  padding: "9px 12px",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border)",
+  background: "var(--bg-card)",
+  color: "var(--text)",
+  fontSize: 13,
+};
+
+function AccountSection() {
+  const { user } = useProfile();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [profiles, setProfiles] = useState<Profile[] | null>(null);
+  const [resetUserId, setResetUserId] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.role === "admin") api.listProfiles().then((r) => setProfiles(r.profiles)).catch(() => {});
+  }, [user]);
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.changePassword(currentPassword || null, newPassword);
+      setMessage("Password aggiornata.");
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (err) {
+      setMessage(err instanceof ApiError && err.status === 401 ? "Password attuale errata." : "Aggiornamento non riuscito.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResetOther(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetUserId) return;
+    setResetMessage(null);
+    try {
+      await api.resetUserPassword(resetUserId, resetPassword);
+      setResetMessage("Password reimpostata. Le sessioni di quell'utente sono state disconnesse.");
+      setResetPassword("");
+    } catch {
+      setResetMessage("Reimpostazione non riuscita.");
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Account</h2>
+
+      <form
+        onSubmit={handleChangePassword}
+        style={{
+          padding: 16,
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--border)",
+          background: "var(--bg-card)",
+          marginBottom: user?.role === "admin" ? 14 : 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          maxWidth: 360,
+        }}
+      >
+        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Cambia la tua password</p>
+        <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-faint)" }}>
+          Serve solo per l'accesso remoto (§24) — sulla rete di casa entri senza password.
+        </p>
+        <input
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          placeholder="Password attuale (se già impostata)"
+          style={inputStyleLocal}
+        />
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Nuova password (almeno 8 caratteri)"
+          style={inputStyleLocal}
+        />
+        {message && <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{message}</p>}
+        <button
+          type="submit"
+          disabled={busy || newPassword.length < 8}
+          style={{ ...secondaryButtonStyleLocal, alignSelf: "flex-start" }}
+        >
+          Aggiorna password
+        </button>
+      </form>
+
+      {user?.role === "admin" && (
+        <form
+          onSubmit={handleResetOther}
           style={{
             padding: 16,
             borderRadius: "var(--radius-md)",
             border: "1px solid var(--border)",
             background: "var(--bg-card)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            maxWidth: 360,
           }}
         >
-          <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>Wi-Fi</p>
-          <WifiPanel />
-        </div>
+          <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Reimposta la password di un utente</p>
+          <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-faint)" }}>
+            Utile se qualcuno ha dimenticato la password per l'accesso remoto (§25).
+          </p>
+          <select value={resetUserId} onChange={(e) => setResetUserId(e.target.value)} style={inputStyleLocal}>
+            <option value="">Seleziona utente…</option>
+            {profiles?.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.displayName}
+              </option>
+            ))}
+          </select>
+          <input
+            type="password"
+            value={resetPassword}
+            onChange={(e) => setResetPassword(e.target.value)}
+            placeholder="Nuova password"
+            style={inputStyleLocal}
+          />
+          {resetMessage && <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>{resetMessage}</p>}
+          <button
+            type="submit"
+            disabled={!resetUserId || resetPassword.length < 8}
+            style={{ ...secondaryButtonStyleLocal, alignSelf: "flex-start" }}
+          >
+            Reimposta
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function SessionsSection() {
+  const { user } = useProfile();
+  const [mySessions, setMySessions] = useState<SessionEntry[] | null>(null);
+  const [allSessions, setAllSessions] = useState<AllSessionEntry[] | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api.listMySessions().then((r) => setMySessions(r.sessions)).catch(() => {});
+    if (user?.role === "admin") api.listAllSessions().then((r) => setAllSessions(r.sessions)).catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleRevoke(id: string) {
+    await api.revokeSession(id);
+    load();
+  }
+
+  async function handleRevokeAllRemote() {
+    const res = await api.revokeAllRemoteSessions();
+    setMessage(`${res.revoked} sessioni remote disconnesse.`);
+    load();
+  }
+
+  function SessionRow({ s, showUser }: { s: SessionEntry | AllSessionEntry; showUser?: boolean }) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 14px",
+          borderRadius: "var(--radius-sm)",
+          border: "1px solid var(--border)",
+          background: "var(--bg-card)",
+          fontSize: 13,
+          marginBottom: 6,
+        }}
+      >
+        <span>
+          {showUser && "username" in s && <strong>{s.displayName}</strong>}
+          {showUser && " — "}
+          {s.deviceName ?? "Dispositivo sconosciuto"}
+          {s.current && <span style={{ color: "var(--accent)" }}> (questa sessione)</span>}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: s.origin === "remote" ? "var(--accent)" : "var(--text-faint)" }}>
+            {s.origin === "remote" ? "Remoto" : "Locale"}
+          </span>
+          <button
+            onClick={() => handleRevoke(s.id)}
+            style={{ background: "none", border: "none", color: "var(--status-problem)", cursor: "pointer", fontSize: 12 }}
+          >
+            Disconnetti
+          </button>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Sessioni</h2>
+
+      {mySessions?.map((s) => <SessionRow key={s.id} s={s} />)}
+
+      {user?.role === "admin" && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "16px 0 8px" }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>Tutte le sessioni (tutti gli utenti)</p>
+            <button
+              onClick={handleRevokeAllRemote}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--status-problem)",
+                background: "transparent",
+                color: "var(--status-problem)",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              Disconnetti tutte le sessioni remote
+            </button>
+          </div>
+          {message && <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{message}</p>}
+          {allSessions?.map((s) => <SessionRow key={s.id} s={s} showUser />)}
+        </>
       )}
     </div>
   );
@@ -320,6 +653,8 @@ export function System() {
 
       <div style={{ marginTop: 28 }}>
         <NetworkSection />
+        <AccountSection />
+        <SessionsSection />
       </div>
     </div>
   );

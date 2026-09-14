@@ -65,6 +65,44 @@ per l'Home Entertainment Hub, in aggiunta a Jellyfin/Immich (vedi
   framework di styling/componenti come Tailwind/MUI, non utility mirate
   come questa o come `webtorrent` lato API).
 
+## DuckDNS — DECISIONE: INTEGRATO
+
+- Provider DDNS di default (§23): gratuito, API pubblica minima (una GET,
+  `https://www.duckdns.org/update?domains=...&token=...&ip=`, risposta
+  testuale "OK"/"KO") — nessuna libreria di terze parti necessaria,
+  implementato con `fetch` nativo. `ip=` vuoto lascia che sia DuckDNS a
+  rilevare l'IP pubblico dalla richiesta stessa (giusto: l'Hub, dietro
+  NAT, non conosce in modo affidabile il proprio IP pubblico).
+- Base URL configurabile (`HUB_DDNS_BASE_URL`) apposta per poter puntare
+  a uno stub HTTP nei test: verificato per davvero in questo ambiente
+  contro un server di prova che replica il contratto dell'API (risposta
+  OK con credenziali corrette, KO con credenziali sbagliate) — non contro
+  il servizio DuckDNS reale (nessun account/dominio disponibile qui).
+- Provider alternativo: la spec (§23) lo richiede configurabile — non
+  ancora implementato un secondo provider, ma l'interfaccia (config →
+  URL di update → parsing OK/KO) è abbastanza generica da poterne
+  aggiungere altri senza cambiare la struttura.
+
+## Caddy — DECISIONE: INTEGRATO (opzionale)
+
+- Reverse proxy con HTTPS automatico (Let's Encrypt) per l'accesso
+  remoto (§24: "certificato gestito automaticamente, rinnovo
+  automatico"). Preferito a scrivere un client ACME proprietario: è
+  esattamente il tipo di problema ("non reinventare la ruota") in cui
+  usare uno strumento maturo e ampiamente testato è più sicuro che
+  implementarne uno in casa.
+- Servizio Docker separato e opzionale (`infra/docker-compose.yml`,
+  profilo `remote-https`), non sostituisce nginx: instrada solo il
+  traffico HTTPS pubblico verso il servizio `web` esistente, che
+  continua a servire la LAN esattamente come prima. Pubblica solo la
+  porta 443 (non la 80) per forzare la verifica TLS-ALPN-01 invece di
+  HTTP-01, evitando di dover aprire due porte sul router per il solo
+  rinnovo del certificato.
+- **Non verificato in questo ambiente**: l'emissione/il rinnovo di un
+  certificato reale richiede un dominio pubblico e una porta 443
+  raggiungibile da Internet, nessuno dei due disponibili in questo
+  sandbox — vedi limitazioni note in `docs/SPECIFICHE.md`.
+
 ## Sonarr/Sonarr — DECISIONE: STUDIARE COME RIFERIMENTO, NON INTEGRARE
 
 - Utile come riferimento architetturale per: automazione libreria, ricerca,

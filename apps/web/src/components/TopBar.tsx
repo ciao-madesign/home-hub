@@ -7,7 +7,7 @@ import { StatusBadge } from "./StatusBadge";
 import { IconLogOut, IconSearch } from "./icons";
 
 export function TopBar() {
-  const { user, logout } = useProfile();
+  const { user, session, logout } = useProfile();
   const { status } = useSystemStatus();
   const online = useOnlineStatus();
   const navigate = useNavigate();
@@ -74,6 +74,22 @@ export function TopBar() {
           }}
         >
           Offline
+        </span>
+      )}
+
+      {session && (
+        <span
+          title={session.origin === "remote" ? "Connesso da fuori casa (accesso remoto)" : "Connesso sulla rete di casa"}
+          style={{
+            fontSize: 12,
+            padding: "4px 10px",
+            borderRadius: 999,
+            background: session.origin === "remote" ? "rgba(99, 102, 241, 0.12)" : "var(--bg-hover)",
+            color: session.origin === "remote" ? "var(--accent)" : "var(--text-faint)",
+            fontWeight: 600,
+          }}
+        >
+          {session.origin === "remote" ? "Remoto" : "Locale"}
         </span>
       )}
 

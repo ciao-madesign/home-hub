@@ -390,6 +390,27 @@ export interface SetupStorageResult {
   alreadyExisted: string[];
 }
 
+export interface SessionEntry {
+  id: string;
+  deviceName: string | null;
+  origin: "local" | "remote";
+  createdAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface AllSessionEntry extends SessionEntry {
+  username: string;
+  displayName: string;
+}
+
+export interface DdnsStatus {
+  configured: boolean;
+  domain: string | null;
+  lastStatus: "ok" | "error" | null;
+  lastUpdatedAt: string | null;
+}
+
 export const api = {
   health: () => request<{ status: string; time: string }>("/health"),
 
@@ -585,4 +606,21 @@ export const api = {
   scanSetupWifi: () => request<{ networks: WifiNetwork[] }>("/setup/wifi/scan"),
   connectSetupWifi: (ssid: string, password: string | null) =>
     request<{ ok: true }>("/setup/wifi/connect", { method: "POST", body: JSON.stringify({ ssid, password }) }),
+
+  listMySessions: () => request<{ sessions: SessionEntry[] }>("/auth/sessions"),
+  listAllSessions: () => request<{ sessions: AllSessionEntry[] }>("/auth/sessions/all"),
+  revokeSession: (id: string) => request<{ ok: true }>(`/auth/sessions/${encodeURIComponent(id)}/revoke`, { method: "POST" }),
+  revokeAllMySessions: () => request<{ ok: true }>("/auth/sessions/revoke-all", { method: "POST" }),
+  revokeAllRemoteSessions: () => request<{ ok: true; revoked: number }>("/auth/sessions/revoke-all-remote", { method: "POST" }),
+
+  changePassword: (currentPassword: string | null, newPassword: string) =>
+    request<{ ok: true }>("/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
+  resetUserPassword: (userId: string, newPassword: string) =>
+    request<{ ok: true }>(`/auth/users/${encodeURIComponent(userId)}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
+    }),
+
+  getDdnsStatus: () => request<DdnsStatus>("/network/ddns/status"),
+  updateDdnsNow: () => request<DdnsStatus>("/network/ddns/update", { method: "POST" }),
 };

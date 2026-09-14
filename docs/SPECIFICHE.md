@@ -164,13 +164,35 @@ rifiutano permanentemente non appena il wizard è completato
 completo end-to-end verificato in un browser reale (Playwright): dischi
 vuoti → wizard → creazione admin reale → login con quell'utente → nome
 Hub personalizzato visibile in sidebar.
-⬜ Da fare: accesso remoto HTTPS + DDNS/tunnel, sessioni/revoca, recupero
-password (il backend supporta già login remoto via password — manca
-l'infrastruttura di rete/HTTPS/DDNS attorno) — **poi, per ultimo**, il
-VPN server personale (WireGuard, aggiunto allo scope su richiesta
-esplicita, vedi §2): è la
-parte più delicata dal punto di vista della sicurezza fatta finora,
-costruita a valle del resto della fase.
+🟡 Fatto (terzo blocco — accesso remoto, §22/§23/§24/§25): indicatore
+Locale/Remoto discreto in TopBar (§22), basato sull'`origin` della
+sessione già tracciato dal backend. Gestione sessioni: elenco delle
+proprie sessioni attive con revoca singola, vista admin di tutte le
+sessioni di tutti gli utenti, pulsante di emergenza "disconnetti tutte le
+sessioni remote" (§24) — verificato che il pulsante revoca anche la
+sessione remota che lo ha invocato. Password: cambio self-service
+(richiede quella attuale se già impostata) e reset da parte di un admin
+per un altro utente (che inoltre disconnette tutte le sue sessioni) —
+copre il "recupero password" via procedura locale (§25): chi dimentica
+la password per l'accesso remoto entra comunque in LAN senza password
+(§21) e la cambia da lì, o se l'ha perso l'accesso se la fa reimpostare
+da un admin. Recupero via e-mail non implementato (richiederebbe
+configurare SMTP, non ancora deciso con l'utente — proposta aperta,
+§3). DDNS (§23): provider DuckDNS, aggiornamento periodico (scheduler
+lazy) dell'IP pubblico, endpoint di stato/aggiornamento manuale —
+verificato per davvero contro uno stub HTTP che replica l'API DuckDNS
+(risposta OK/KO), non contro il servizio reale. HTTPS automatico (§24):
+servizio Caddy opzionale (`docker compose --profile remote-https`),
+reverse proxy con certificato Let's Encrypt automatico verso la Web App
+esistente, senza toccare l'accesso LAN — non verificabile end-to-end in
+questo ambiente (nessun dominio pubblico/router reale).
+⬜ Da fare: port forwarding automatico (UPnP/NAT-PMP) — per ora
+documentato come passo manuale sul router (vedi README "Deploy");
+tunnel fallback per router che non supportano il port forwarding —
+**poi, per ultimo**, il VPN server personale (WireGuard, aggiunto allo
+scope su richiesta esplicita, vedi §2): è la parte più delicata dal
+punto di vista della sicurezza fatta finora, costruita a valle del
+resto della fase.
 
 ### Fase 10 — Sistema
 🟡 Fatto: monitoraggio CPU/RAM/temperatura/storage/servizi, indicatore
@@ -446,3 +468,12 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   scenario reale "secondo disco USB/SATA che si scollega a metà backup"
   (in questo ambiente ogni percorso è sullo stesso filesystem), né il
   recovery completo su hardware nuovo end-to-end.
+- DDNS (`lib/network/ddns.ts`) verificato contro uno stub HTTP fedele
+  all'API DuckDNS, non contro il servizio reale (nessun account/dominio
+  DuckDNS disponibile in questo ambiente). Caddy/HTTPS automatico
+  (`infra/Caddyfile`, servizio `caddy` opzionale) non verificabile affatto
+  in questo ambiente: richiede un dominio pubblico reale, DNS che punta
+  a un IP raggiungibile da Internet e la porta 443 aperta sul router —
+  nessuno di questi disponibile qui. Port forwarding automatico
+  (UPnP/NAT-PMP) non implementato: in V1 va aperto manualmente sul router
+  (documentato in README "Deploy").

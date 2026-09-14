@@ -116,8 +116,19 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   finti. Gli endpoint del wizard (`/api/setup/*`, senza autenticazione:
   a quel punto non esiste ancora nessun utente) si disattivano in modo
   permanente non appena il wizard viene completato, indipendentemente da
-  login — verificato. **Non implementato**: accesso remoto HTTPS/DDNS/
-  tunnel, VPN personale — vedi `docs/SPECIFICHE.md`.
+  login — verificato.
+- **Rete — accesso remoto** (§22/§23/§24/§25, terza parte della Fase 9):
+  indicatore Locale/Remoto in alto a destra. Gestione sessioni: elenco
+  con revoca singola, vista admin di tutte le sessioni di tutti gli
+  utenti, pulsante di emergenza "disconnetti tutte le sessioni remote".
+  Cambio password self-service e reset da parte di un admin per un altro
+  utente (copre il recupero password via procedura locale, §25). DDNS
+  (provider DuckDNS) con aggiornamento periodico dell'IP pubblico. HTTPS
+  automatico via un servizio Caddy opzionale (Let's Encrypt), che non
+  tocca l'accesso LAN esistente. **Non implementato**: port forwarding
+  automatico (va aperto a mano sul router, vedi "Deploy" sotto), tunnel
+  di fallback, VPN personale (ultima funzione pianificata) — vedi
+  `docs/SPECIFICHE.md`.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -137,16 +148,20 @@ verificato solo nel percorso di degrado (nessun device reale con
 per davvero con un client separato sullo stesso loopback; risoluzione da
 parte di client reali (macOS/iOS/Android/Windows) su una LAN reale non
 verificata. Wi-Fi verificato solo nel percorso di degrado (nessun
-NetworkManager/hardware Wi-Fi in questo ambiente).
+NetworkManager/hardware Wi-Fi in questo ambiente). DDNS verificato
+contro uno stub fedele all'API DuckDNS, non contro il servizio reale.
+Caddy/HTTPS automatico non verificabile affatto in questo ambiente
+(serve un dominio pubblico reale e la porta 443 aperta su un router
+reale).
 
-Non ancora implementato: accesso remoto/DDNS/
-HTTPS, VPN personale, selezione traccia audio multipla, ricerca globale
-full-text, priorità dinamica di download/backup basata sull'attività di
-streaming in corso (attualmente un limite di banda statico per
-entrambi), avvio sessioni Sunshine/Moonlight, libreria virtuale
-multi-disco con distribuzione automatica dei nuovi file. Vedi la
-roadmap completa e la checklist dettagliata in `docs/SPEC_V1.md` §38-39
-e `docs/SPECIFICHE.md`.
+Non ancora implementato: port forwarding automatico, tunnel di
+fallback, VPN personale, selezione traccia audio multipla, ricerca
+globale full-text, priorità dinamica di download/backup basata
+sull'attività di streaming in corso (attualmente un limite di banda
+statico per entrambi), avvio sessioni Sunshine/Moonlight, libreria
+virtuale multi-disco con distribuzione automatica dei nuovi file. Vedi
+la roadmap completa e la checklist dettagliata in `docs/SPEC_V1.md`
+§38-39 e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 
@@ -246,6 +261,31 @@ infra/data/
 ```
 
 `infra/data/` non è versionato (dati reali dell'utente).
+
+### 3. Accesso remoto (opzionale, §22-24)
+
+Per accedere all'Hub da fuori casa serve, in questo ordine:
+
+1. **DDNS**, se il tuo IP pubblico cambia nel tempo (quasi sempre, con un
+   contratto residenziale): crea un account gratuito su
+   [duckdns.org](https://www.duckdns.org), un dominio (es.
+   `mio-hub.duckdns.org`) e prendi nota del token. Imposta
+   `HUB_DDNS_DOMAIN`/`HUB_DDNS_TOKEN` in `apps/api/.env` e riavvia
+   (`sudo systemctl restart home-hub-api`): l'Hub aggiorna da solo l'IP
+   ogni `HUB_DDNS_INTERVAL_MINUTES` minuti.
+2. **Port forwarding sul router** (manuale in V1, non automatizzato):
+   inoltra la porta 443 del router verso l'IP del Wyse sulla LAN,
+   porta 443. La procedura cambia da router a router (di solito
+   "Port Forwarding"/"Virtual Server" nelle impostazioni).
+3. **HTTPS**: avvia il servizio Caddy opzionale, che ottiene da solo un
+   certificato Let's Encrypt per il dominio DDNS:
+   ```bash
+   cd /opt/home-hub/infra
+   # aggiungi HUB_PUBLIC_DOMAIN (lo stesso dominio DDNS) e HUB_ACME_EMAIL a .env
+   docker compose --profile remote-https up -d
+   ```
+   Da quel momento `https://<il-tuo-dominio>` è raggiungibile da
+   Internet; l'accesso LAN su `HUB_WEB_PORT` non cambia.
 
 ### Aggiornamenti
 
