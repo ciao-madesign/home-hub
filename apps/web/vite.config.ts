@@ -9,6 +9,7 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:4000",
         changeOrigin: true,
+        ws: true, // condivisione schermo (§2): /api/screenshare/ws è un WebSocket, non solo REST
       },
     },
   },

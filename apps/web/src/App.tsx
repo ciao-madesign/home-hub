@@ -18,6 +18,7 @@ import { Files } from "./pages/Files";
 import { Downloads } from "./pages/Downloads";
 import { Storage } from "./pages/Storage";
 import { Web } from "./pages/Web";
+import { ScreenShare } from "./pages/ScreenShare";
 import { System } from "./pages/System";
 import { Search } from "./pages/Search";
 
@@ -58,6 +59,7 @@ function Gate() {
         <Route path="download" element={<Downloads />} />
         <Route path="storage" element={<Storage />} />
         <Route path="web" element={<Web />} />
+        <Route path="condivisione" element={<ScreenShare />} />
         <Route path="sistema" element={<System />} />
         <Route path="cerca" element={<Search />} />
         <Route path="*" element={<Navigate to="/" replace />} />

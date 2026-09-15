@@ -6,13 +6,14 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo un blocco di 6 funzionalità richieste
-esplicitamente dall'utente — priorità di banda dinamica (§32), ricerca
-globale su Foto (§16), selezione automatica della macchina in Gaming
-(§10), libreria virtuale multi-disco per il File Manager (§4),
-aggiornamenti Hub dalla Web App (§33), tunnel di fallback gratuito
-Cloudflare (§23) — tutte chiudono proposte aperte elencate in questo
-stesso documento. Restano da fare, quando l'utente avrà l'hardware
+Ultimo aggiornamento: dopo AdGuard Home e Condivisione schermo (relay
+WebRTC), entrambe fuori roadmap su richiesta esplicita dell'utente — si
+aggiungono al blocco precedente di 6 funzionalità (priorità di banda
+dinamica §32, ricerca globale su Foto §16, selezione automatica della
+macchina in Gaming §10, libreria virtuale multi-disco per il File
+Manager §4, aggiornamenti Hub dalla Web App §33, tunnel di fallback
+gratuito Cloudflare §23) che chiudevano le proposte aperte elencate in
+questo documento. Restano da fare, quando l'utente avrà l'hardware
 pronto: verifica reale del VPN (nessun modulo kernel WireGuard
 disponibile in questo ambiente), port forwarding/tunnel reale (l'ISP
 dell'utente, EOLO, è probabilmente dietro CGNAT, vedi §3 — per questo
@@ -397,6 +398,54 @@ per davvero: creazione/validazione via curl (uno schema `javascript:`
 viene rifiutato con 400), e in un browser reale che il collegamento
 generato ha `href` esatto, `target="_blank"` e
 `rel="noopener noreferrer"`.
+
+### Extra — AdGuard Home, fuori roadmap
+✅ Richiesta esplicita dell'utente. Blocco pubblicità/tracker a livello
+DNS per tutta la rete di casa: nuovo servizio Docker indipendente
+(`infra/docker-compose.yml`), non parla con l'Hub API — stesso
+isolamento di Jellyfin/Immich (§2). Scelto invece di Pi-hole (decisione
+dell'utente tra le due alternative) per interfaccia più moderna e filtro
+DNS-over-HTTPS/TLS integrato — vedi `docs/EXTERNAL_TOOLS.md`. Sempre
+attivo (nessun profilo Docker): non fa nulla finché nessun dispositivo
+lo usa come DNS. Verificato: sintassi `docker-compose.yml` validata con
+`docker compose config` (default e con tutti i profili). Non
+verificabile qui: nessuna rete/router reale per impostarlo come DNS e
+osservare il blocco in pratica.
+
+### Extra — Condivisione schermo, fuori roadmap
+✅ Richiesta esplicita dell'utente. L'Hub fa da **relay WebRTC vero e
+proprio** (il video passa fisicamente attraverso l'Hub), non solo da
+segnalazione peer-to-peer — decisione presa con l'utente proprio per il
+probabile CGNAT del suo ISP (§3): un collegamento diretto tra chi
+condivide (a casa, dietro CGNAT) e chi guarda da fuori rischierebbe di
+non stabilirsi mai, mentre passando dall'Hub si riusano gli stessi
+percorsi già risolti per l'accesso remoto (VPN §2, tunnel §23). Un
+utente ha al più una sessione di condivisione attiva alla volta; ogni
+altro utente autenticato può collegarsi e scollegarsi quando vuole
+(`GET /api/screenshare/sessions` per scoprire le sessioni attive). Stato
+solo in memoria (mai nel database, non ha senso sopravvivere a un
+riavvio — stesso principio degli `activeHandles`/`runningProcesses` di
+Download/Gaming). Libreria `werift` (WebRTC puro TypeScript, nessuna
+compilazione nativa — vedi `docs/EXTERNAL_TOOLS.md` per il confronto con
+le alternative). Solo STUN, nessun TURN: chi guarda da fuori casa senza
+passare dalla VPN dell'Hub può non riuscire a collegarsi, stesso limite
+già noto per l'accesso remoto diretto — un TURN è un passo successivo
+non affrontato qui. Condividere il proprio schermo richiede un contesto
+sicuro (HTTPS, limite del browser stesso per `getDisplayMedia`) —
+guardare no.
+
+Verificato per davvero: due client WebRTC reali (istanze `werift`, non
+browser) connessi al vero endpoint WebSocket dell'Hub — handshake
+completo (offer/answer/ICE) per entrambi, sessione visibile
+nell'endpoint di stato, pacchetti RTP scritti dal client "host" ricevuti
+correttamente dal client "viewer" **attraverso il relay dell'Hub**
+(payload verificato byte per byte), pulizia della sessione alla
+disconnessione dell'host, rifiuto corretto di un viewer senza sessione
+attiva. La UI del browser (stesso protocollo) verificata renderizzare
+senza errori in Chromium reale (Playwright) — non verificata la cattura
+schermo reale: questo ambiente sandbox non ha un display (nemmeno
+virtuale) da cui Chromium headless possa catturare ("Could not start
+video source", limite dell'ambiente non del codice).
 
 ---
 

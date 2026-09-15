@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import { config } from "./config.js";
 import { getDb } from "./db/index.js";
 import { attachAuth } from "./plugins/auth.js";
@@ -30,6 +31,7 @@ import { vpnRoutes } from "./routes/vpn.js";
 import { bootstrapVpn } from "./lib/network/vpn.js";
 import { bootstrapPriorityMonitor } from "./lib/priority.js";
 import { updatesRoutes } from "./routes/updates.js";
+import { screenshareRoutes } from "./routes/screenshare.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -43,6 +45,7 @@ async function main() {
   await app.register(multipart, {
     limits: { fileSize: 10 * 1024 * 1024 * 1024 }, // 10 GB, coerente con file multimediali di grandi dimensioni
   });
+  await app.register(websocket);
 
   app.addHook("onRequest", attachAuth);
 
@@ -66,6 +69,7 @@ async function main() {
   await app.register(searchRoutes);
   await app.register(vpnRoutes);
   await app.register(updatesRoutes);
+  await app.register(screenshareRoutes);
 
   bootstrapBackupScheduler();
   startMdnsAdvertising();

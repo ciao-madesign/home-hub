@@ -731,4 +731,21 @@ export const api = {
 
   getUpdateStatus: () => request<UpdateStatus>("/updates/status"),
   applyUpdate: () => request<{ updatedTo: string; restartTriggered: boolean }>("/updates/apply", { method: "POST" }),
+
+  listScreenShareSessions: () => request<{ sessions: ScreenShareSessionSummary[] }>("/screenshare/sessions"),
 };
+
+export interface ScreenShareSessionSummary {
+  hostUserId: string;
+  hostDisplayName: string;
+  startedAt: string;
+  viewerCount: number;
+}
+
+/** WebSocket nativo del browser: niente header, il token passa come query string (§2, stesso compromesso di <video src>). */
+export function screenShareWsUrl(role: "host" | "viewer", hostUserId?: string): string {
+  const params = new URLSearchParams({ role, token: getToken() ?? "" });
+  if (hostUserId) params.set("hostUserId", hostUserId);
+  const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${location.host}/api/screenshare/ws?${params.toString()}`;
+}

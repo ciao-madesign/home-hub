@@ -120,3 +120,11 @@ export const IconLogOut = (p: SVGProps<SVGSVGElement>) => (
     <path d="M16 17l5-5-5-5M21 12H9" />
   </Icon>
 );
+
+export const IconScreenShare = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 21h8M12 16v5" />
+    <path d="M9 12l3-3 3 3M12 9v5" />
+  </Icon>
+);

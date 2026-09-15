@@ -175,6 +175,16 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   pubblicità/tracker a livello DNS per tutta la rete di casa, servizio
   Docker indipendente (non parla con l'Hub API, stesso isolamento di
   Jellyfin/Immich). Vedi "Deploy" sotto per l'attivazione.
+- **Condivisione schermo** (fuori roadmap, richiesta esplicita): l'Hub fa
+  da relay WebRTC vero e proprio — il video passa fisicamente attraverso
+  l'Hub (non solo segnalazione peer-to-peer), scelta deliberata per via
+  del probabile CGNAT dell'ISP dell'utente (§3): chi guarda da fuori casa
+  passa dagli stessi percorsi già risolti per l'accesso remoto
+  (VPN/tunnel), un collegamento diretto rischierebbe di non stabilirsi
+  mai. Chi condivide resta al massimo una sessione attiva, chiunque altro
+  sia collegato all'Hub può guardarla quando vuole. Richiede un contesto
+  sicuro (HTTPS) per condividere il proprio schermo (limite del browser,
+  non dell'Hub) — guardare non ha questo vincolo.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -223,7 +233,13 @@ verificabile in questo ambiente un tunnel Cloudflare reale (serve un
 account/dominio Cloudflare) né `cloudflared` stesso. AdGuard Home:
 configurazione Docker validata, ma nessuna rete/router reale disponibile
 qui per impostarlo come DNS di un dispositivo e osservare il blocco
-pubblicità in pratica.
+pubblicità in pratica. Condivisione schermo: il relay WebRTC verificato
+per davvero end-to-end (handshake completo e pacchetti RTP relayati
+correttamente attraverso l'Hub) usando due client WebRTC reali al posto
+di due browser; la UI del browser (stesso protocollo) verificata
+renderizzare senza errori, ma non la cattura schermo reale — questo
+ambiente sandbox non ha un display da cui Chromium headless possa
+catturare.
 
 Non ancora implementato: standby/wake automatico, port forwarding
 automatico, ricerca globale su Musica (ancora uno stub), avvio sessioni

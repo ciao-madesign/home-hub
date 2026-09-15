@@ -127,6 +127,35 @@ per l'Home Entertainment Hub, in aggiunta a Jellyfin/Immich (vedi
   blocco pubblicità effettivo non è stato osservato in pratica — solo la
   configurazione Docker validata (`docker compose config`).
 
+## shinyoshiaki/werift — DECISIONE: INTEGRATO
+
+- Implementazione WebRTC per Node.js (RTCPeerConnection, ICE, DTLS-SRTP,
+  RTP/RTCP) usata dal relay di Condivisione schermo (fuori roadmap,
+  richiesta esplicita dell'utente — l'Hub fa davvero da ponte per il
+  video, non solo da segnalazione, decisione presa con l'utente per il
+  probabile CGNAT dell'ISP, §3, vedi docs/SPECIFICHE.md).
+- Preferita a `mediasoup` (l'SFU più diffuso per Node) e a `node-webrtc`/
+  `@roamhq/wrtc` (binding nativi di libwebrtc): è puro TypeScript, senza
+  compilazione nativa — stesso principio già seguito scegliendo
+  `node:sqlite` al posto di `better-sqlite3` e WebTorrent come libreria
+  pura invece di un client torrent esterno, per restare semplici da
+  installare sul Wyse.
+- Verificato per davvero in questo ambiente: un client "host" e un
+  client "viewer", entrambi istanze werift separate (non browser),
+  connessi al vero endpoint WebSocket dell'Hub — handshake WebRTC
+  completo (offer/answer/ICE) per entrambi, sessione visibile in
+  `GET /api/screenshare/sessions`, e pacchetti RTP reali scritti dal
+  client host ricevuti correttamente dal client viewer **attraverso il
+  relay dell'Hub** (contenuto del payload verificato byte per byte).
+  Verificata anche la pulizia della sessione alla disconnessione
+  dell'host e il rifiuto di un viewer senza sessione attiva.
+- **Non verificato**: cattura schermo reale da un browser vero — questo
+  ambiente sandbox non ha un display (nemmeno virtuale) da cui Chromium
+  headless possa catturare, fallisce con "Could not start video source"
+  indipendentemente dal codice dell'Hub. La UI (stesso identico
+  protocollo di segnalazione già validato lato server) è stata comunque
+  verificata renderizzare senza errori in un browser reale.
+
 ## Sonarr/Sonarr — DECISIONE: STUDIARE COME RIFERIMENTO, NON INTEGRARE
 
 - Utile come riferimento architetturale per: automazione libreria, ricerca,
