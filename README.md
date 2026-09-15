@@ -429,6 +429,8 @@ serve un tunnel verso un servizio esterno (non ancora implementato).
 
 Guida passo passo per chi deve solo *usare* la VPN (non configurarla),
 da linkare o stampare per gli utenti finali: `docs/GUIDA_VPN.md`.
+Guida per spostare l'intero Hub (dati compresi) su un altro dispositivo:
+`docs/GUIDA_MIGRAZIONE.md`.
 
 ### Aggiornamenti
 
