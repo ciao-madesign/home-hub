@@ -103,6 +103,30 @@ per l'Home Entertainment Hub, in aggiunta a Jellyfin/Immich (vedi
   raggiungibile da Internet, nessuno dei due disponibili in questo
   sandbox — vedi limitazioni note in `docs/SPECIFICHE.md`.
 
+## AdGuard Home — DECISIONE: INTEGRATO
+
+- Blocco pubblicità/tracker a livello DNS per tutta la rete di casa
+  (fuori roadmap SPEC_V1/V2, richiesta esplicita dell'utente). Preferito
+  a scrivere qualcosa in casa per lo stesso motivo di Caddy: è un
+  problema già risolto bene da uno strumento maturo — qui in particolare
+  liste di blocco aggiornate costantemente, non banali da mantenere da
+  soli.
+- Preferito a Pi-hole (l'alternativa più nota, scelta dell'utente tra le
+  due): interfaccia più moderna, filtro DNS-over-HTTPS/TLS opzionale
+  integrato, container singolo senza dipendenze esterne (Pi-hole
+  storicamente ne ha avute per l'interfaccia web).
+- Servizio Docker indipendente (`infra/docker-compose.yml`), non parla
+  con l'Hub API — stesso principio di isolamento di Jellyfin/Immich
+  (§2): il frontend/l'API non lo conoscono, è un servizio a sé che un
+  dispositivo qualsiasi sulla rete usa impostandolo come proprio DNS.
+  Sempre attivo (nessun profilo Docker): a differenza dei servizi di
+  accesso remoto non fa nulla finché nessuno lo usa, quindi non ha senso
+  renderlo opt-in.
+- **Non verificato in questo ambiente**: nessuna rete/router reale
+  disponibile per impostare un dispositivo a usarlo come DNS, quindi il
+  blocco pubblicità effettivo non è stato osservato in pratica — solo la
+  configurazione Docker validata (`docker compose config`).
+
 ## Sonarr/Sonarr — DECISIONE: STUDIARE COME RIFERIMENTO, NON INTEGRARE
 
 - Utile come riferimento architetturale per: automazione libreria, ricerca,

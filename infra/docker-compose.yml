@@ -20,6 +20,34 @@ services:
       - "host.docker.internal:host-gateway"
     networks: [hub]
 
+  # Blocco pubblicità/tracker a livello DNS (fuori roadmap, richiesta
+  # esplicita dell'utente — vedi docs/EXTERNAL_TOOLS.md per la
+  # motivazione). Non parla con l'Hub API: è un servizio indipendente,
+  # come Jellyfin/Immich. Sempre attivo (nessun profilo): non fa nulla
+  # finché nessun dispositivo lo usa come DNS, quindi non c'è motivo di
+  # tenerlo opt-in come i servizi di accesso remoto.
+  #
+  # IMPORTANTE: sulla porta 53 spesso c'è già `systemd-resolved` in
+  # ascolto sul Wyse (comune su Ubuntu) — verifica con
+  # `sudo ss -tulpn | grep :53` prima del primo avvio; se occupata,
+  # disabilita lo stub listener di systemd-resolved (vedi README
+  # "Deploy" per il comando) invece di cambiare la porta qui, altrimenti
+  # i dispositivi che puntano al DNS standard (53) non lo raggiungono.
+  adguard:
+    image: adguard/adguardhome:latest
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      # Pannello di amministrazione — porta diversa da 80/443, già usate
+      # da web/Caddy. Al primo avvio guida un setup wizard (utente admin,
+      # eventuale cambio porta) su questo stesso indirizzo.
+      - "${HUB_ADGUARD_ADMIN_PORT:-3001}:3000"
+    volumes:
+      - ./data/adguard/conf:/opt/adguardhome/conf
+      - ./data/adguard/work:/opt/adguardhome/work
+    networks: [hub]
+
   # Backend Film/Serie (§7).
   jellyfin:
     image: jellyfin/jellyfin:latest

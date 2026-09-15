@@ -171,6 +171,10 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   la maggior parte dei siti di streaming blocca l'incorporamento via
   iframe (vedi `docs/SPECIFICHE.md` per il confronto con l'alternativa
   di un browser incorporato, scartata).
+- **AdGuard Home** (fuori roadmap, richiesta esplicita): blocco
+  pubblicità/tracker a livello DNS per tutta la rete di casa, servizio
+  Docker indipendente (non parla con l'Hub API, stesso isolamento di
+  Jellyfin/Immich). Vedi "Deploy" sotto per l'attivazione.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -216,7 +220,10 @@ di `Caddyfile.tunnel` (`/api/profiles*`, `/api/setup/*`) verificato per
 davvero con un'istanza Caddy reale contro un backend fittizio (403 sui
 percorsi bloccati, proxy funzionante su tutto il resto) — non
 verificabile in questo ambiente un tunnel Cloudflare reale (serve un
-account/dominio Cloudflare) né `cloudflared` stesso.
+account/dominio Cloudflare) né `cloudflared` stesso. AdGuard Home:
+configurazione Docker validata, ma nessuna rete/router reale disponibile
+qui per impostarlo come DNS di un dispositivo e osservare il blocco
+pubblicità in pratica.
 
 Non ancora implementato: standby/wake automatico, port forwarding
 automatico, ricerca globale su Musica (ancora uno stub), avvio sessioni
@@ -332,6 +339,24 @@ infra/data/
 ```
 
 `infra/data/` non è versionato (dati reali dell'utente).
+
+Lo stesso `docker compose up -d` avvia anche **AdGuard Home** (blocco
+pubblicità/tracker a livello DNS, fuori roadmap): il pannello di
+amministrazione è su `http://<host>:3001`, dove un wizard guidato al
+primo accesso crea l'utente admin. Da lì:
+
+1. Imposta come DNS dei tuoi dispositivi (PC, telefono, o direttamente
+   nel router per tutta la rete) l'IP del Wyse — AdGuard Home blocca
+   pubblicità/tracker per chiunque lo usi come DNS, offline o online.
+2. **Prima del primo avvio**, verifica che la porta 53 sia libera sul
+   Wyse (`sudo ss -tulpn | grep :53`): su Ubuntu è spesso occupata da
+   `systemd-resolved`. Se lo è, disabilita solo il suo stub listener
+   (non systemd-resolved intero, serve ancora per la risoluzione DNS
+   locale del sistema):
+   ```bash
+   sudo sed -i 's/#DNSStubListener=yes/DNSStubListener=no/' /etc/systemd/resolved.conf
+   sudo systemctl restart systemd-resolved
+   ```
 
 ### 3. Accesso remoto (opzionale, §22-24)
 
