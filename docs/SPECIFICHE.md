@@ -727,6 +727,31 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   unico disco dati (`HUB_DATA_ROOT`). Estenderla è più semplice ora che
   il meccanismo di base esiste già ed è riusabile, ma resta un passo
   separato volutamente non affrontato in questa passata.
+- **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
+  dell'utente, non richiesta da SPEC_V1/V2. Idea: un "AI Orchestrator"
+  come ulteriore livello dell'Hub API che riceve richieste in linguaggio
+  naturale, le instrada a uno o più modelli locali (es. un modello
+  generale, uno per reasoning, uno agentico con tool calling) e concede
+  loro accesso solo a strumenti controllati (`search_movies`,
+  `start_download`, ecc.), mai diretto a filesystem/Docker/DB — stesso
+  principio già seguito ovunque nell'Hub (l'AI diventerebbe un chiamante
+  dell'API interna, non un bypass). Azioni distruttive richiederebbero
+  conferma esplicita lato Hub, non lato modello.
+  **Bloccante hardware**: il Wyse 5070 (Intel J4105, 8 GB RAM) non è in
+  grado di eseguire modelli locali in modo utilizzabile, tantomeno più
+  d'uno in orchestrazione — la proposta stessa presuppone hardware ben
+  più potente (es. Ryzen 7 + 32 GB RAM).
+  **Possibile soluzione discussa**: eseguire Ollama/i modelli su un PC
+  remoto già in rete (lo stesso eventualmente usato per il Gaming, §10) e
+  farli raggiungere dall'Hub API via HTTP — stesso pattern di
+  Jellyfin/Immich (client HTTP dietro l'API, 503 non fatale se il PC è
+  spento o irraggiungibile, mai esposto al frontend direttamente).
+  Riuserebbe anche l'auto-selezione/Wake-on-LAN già costruiti per il
+  Gaming per accendere il PC su richiesta. Non ancora deciso con
+  l'utente se/quando procedere; se approvato, partire con un solo
+  modello e pochi strumenti ben definiti prima di valutare
+  l'orchestrazione multi-modello, per non introdurre complessità non
+  ancora giustificata dalla scala del progetto.
 
 (**Selezione automatica della macchina di esecuzione** e **priorità
 risorse dinamica per download/backup**: proposte chiuse, vedi Fase 7 e
