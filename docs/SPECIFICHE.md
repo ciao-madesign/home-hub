@@ -817,10 +817,20 @@ con l'utente il 2026-09-17.
 
 1. **Estensione "dispositivo di riproduzione" per più TV**: la
    Riproduzione su TV (Extra, sopra) oggi assume un solo output (il Wyse
-   via HDMI). Estendere a più dispositivi (es. una seconda Smart TV via
-   browser/client) è puro lavoro di astrazione software — probabile
-   estensione della stessa `machines` già usata dal Gaming — non
-   affrontata finché serve davvero un secondo dispositivo.
+   via HDMI). **Chiesto esplicitamente all'utente se esiste già un
+   secondo dispositivo reale in mente (2026-09-17): confermato che è
+   ipotetico** — nessun lavoro fatto, deliberatamente. Non è comunque
+   una semplice estensione dell'astrazione `machines` del Gaming come
+   ipotizzato in origine: se il secondo dispositivo ha un browser
+   proprio (es. una Smart TV), non serve alcun lavoro backend — basta
+   aprire la Web App direttamente lì e riusare `VideoPlayer.tsx`, che
+   già funziona ovunque. Il lavoro vero servirebbe solo per controllare
+   quella seconda TV *da remoto* (telecomando da un altro dispositivo),
+   e richiederebbe un meccanismo diverso da mpv/IPC (un browser di una
+   Smart TV non è un processo che l'Hub può pilotare) — più vicino al
+   pattern WebSocket già usato da Condivisione schermo che a quello di
+   Riproduzione su TV. Da riprendere solo quando esiste un dispositivo
+   reale su cui progettare e verificare quel meccanismo.
 2. **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
    in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
    "Continua a guardare" già gestito lato Hub), andrebbe creato un
