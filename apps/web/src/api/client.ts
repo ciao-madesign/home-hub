@@ -733,6 +733,15 @@ export const api = {
   applyUpdate: () => request<{ updatedTo: string; restartTriggered: boolean }>("/updates/apply", { method: "POST" }),
 
   listScreenShareSessions: () => request<{ sessions: ScreenShareSessionSummary[] }>("/screenshare/sessions"),
+
+  tvPlay: (itemId: string, itemType: "movie" | "episode") =>
+    request<{ session: TvSessionStatus }>("/tv/play", {
+      method: "POST",
+      body: JSON.stringify({ itemId, itemType }),
+    }),
+  tvStatus: () => request<{ session: TvSessionStatus | null }>("/tv/status"),
+  tvControl: (body: TvControlAction) =>
+    request<{ session: TvSessionStatus | null }>("/tv/control", { method: "POST", body: JSON.stringify(body) }),
 };
 
 export interface ScreenShareSessionSummary {
@@ -748,4 +757,45 @@ export function screenShareWsUrl(role: "host" | "viewer", hostUserId?: string): 
   if (hostUserId) params.set("hostUserId", hostUserId);
   const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${wsProtocol}//${location.host}/api/screenshare/ws?${params.toString()}`;
+}
+
+/**
+ * Riproduzione su TV non Smart (fuori roadmap, richiesta esplicita
+ * dell'utente): il Wyse riproduce davvero (mpv), i dispositivi di
+ * controllo ricevono solo lo stato in tempo reale via WebSocket.
+ */
+export interface TvTrackInfo {
+  id: number;
+  label: string;
+}
+
+export interface TvSessionStatus {
+  itemId: string;
+  itemType: "movie" | "episode";
+  title: string;
+  status: "playing" | "paused" | "stopped";
+  positionSeconds: number;
+  durationSeconds: number | null;
+  volume: number;
+  audioTrack: number | null;
+  subtitleTrack: number | null;
+  audioTracks: TvTrackInfo[];
+  subtitleTracks: TvTrackInfo[];
+  startedByUserId: string;
+  startedAt: string;
+}
+
+export type TvControlAction =
+  | { action: "pause" }
+  | { action: "resume" }
+  | { action: "stop" }
+  | { action: "seek"; seconds: number }
+  | { action: "volume"; volume: number }
+  | { action: "audio-track"; track: number }
+  | { action: "subtitle-track"; track: number | null };
+
+export function tvWsUrl(): string {
+  const params = new URLSearchParams({ token: getToken() ?? "" });
+  const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${location.host}/api/tv/ws?${params.toString()}`;
 }

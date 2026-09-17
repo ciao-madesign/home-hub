@@ -128,3 +128,11 @@ export const IconScreenShare = (p: SVGProps<SVGSVGElement>) => (
     <path d="M9 12l3-3 3 3M12 9v5" />
   </Icon>
 );
+
+export const IconRemote = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="7" y="2" width="10" height="20" rx="4" />
+    <circle cx="12" cy="7" r="1.5" />
+    <path d="M9.5 12h5M9.5 16h5" />
+  </Icon>
+);

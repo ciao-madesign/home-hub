@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, mediaImageUrl, type MovieDetail as MovieDetailDto, type ResumeInfo } from "../api/client";
 import { ServiceUnavailable } from "../components/ServiceUnavailable";
 import { VideoPlayer } from "../components/VideoPlayer";
@@ -7,11 +7,23 @@ import { formatRuntime } from "../lib/format";
 
 export function MovieDetail() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [movie, setMovie] = useState<MovieDetailDto | null>(null);
   const [resume, setResume] = useState<ResumeInfo | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [castError, setCastError] = useState<string | null>(null);
+
+  async function playOnTv() {
+    setCastError(null);
+    try {
+      await api.tvPlay(id, "movie");
+      navigate("/telecomando");
+    } catch {
+      setCastError("Impossibile avviare la riproduzione sulla TV.");
+    }
+  }
 
   useEffect(() => {
     setPlaying(false);
@@ -68,23 +80,42 @@ export function MovieDetail() {
           )}
 
           {!playing && (
-            <button
-              onClick={() => setPlaying(true)}
-              style={{
-                marginTop: 12,
-                padding: "10px 20px",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                background: "var(--accent)",
-                color: "white",
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: "pointer",
-              }}
-            >
-              {resume ? "Riprendi" : "Riproduci"}
-            </button>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={() => setPlaying(true)}
+                style={{
+                  marginTop: 12,
+                  padding: "10px 20px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "none",
+                  background: "var(--accent)",
+                  color: "white",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                {resume ? "Riprendi" : "Riproduci"}
+              </button>
+              <button
+                onClick={playOnTv}
+                style={{
+                  marginTop: 12,
+                  padding: "10px 20px",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)",
+                  background: "transparent",
+                  color: "var(--text)",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Riproduci sulla TV
+              </button>
+            </div>
           )}
+          {castError && <p style={{ fontSize: 13, color: "var(--status-problem)", marginTop: 8 }}>{castError}</p>}
         </div>
       </div>
 

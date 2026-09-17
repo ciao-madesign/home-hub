@@ -6,8 +6,9 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo AdGuard Home e Condivisione schermo (relay
-WebRTC), entrambe fuori roadmap su richiesta esplicita dell'utente — si
+Ultimo aggiornamento: dopo AdGuard Home, Condivisione schermo (relay
+WebRTC) e Riproduzione su TV non Smart (mpv pilotato dall'Hub API),
+tutte e tre fuori roadmap su richiesta esplicita dell'utente — si
 aggiungono al blocco precedente di 6 funzionalità (priorità di banda
 dinamica §32, ricerca globale su Foto §16, selezione automatica della
 macchina in Gaming §10, libreria virtuale multi-disco per il File
@@ -447,6 +448,47 @@ schermo reale: questo ambiente sandbox non ha un display (nemmeno
 virtuale) da cui Chromium headless possa catturare ("Could not start
 video source", limite dell'ambiente non del codice).
 
+### Extra — Riproduzione su TV non Smart, fuori roadmap
+✅ Richiesta esplicita dell'utente. Il Wyse, collegato via HDMI a una TV
+non Smart, riproduce davvero (mpv, `lib/tvPlayer/`, gira come processo
+figlio dell'Hub API sul Wyse — stesso pattern degli emulatori Gaming);
+un secondo dispositivo (iPhone o browser) sceglie il contenuto e resta
+poi un telecomando (`/telecomando`), mai il dispositivo che riproduce —
+differenza architetturale chiave rispetto a `VideoPlayer.tsx`, che
+riproduce nel browser di chi guarda. `POST /api/tv/play` avvia mpv
+sull'endpoint `/api/media/:id/stream` già usato dal player nel browser
+(mai reinventare l'integrazione Jellyfin), raggiunto in loopback col
+token dell'utente che avvia la riproduzione. A differenza del browser,
+mpv seleziona nativamente le tracce audio/sottotitoli del file in direct
+play (`track-list`) — non serve il workaround `AudioStreamIndex` usato
+per Chromium (§7). Stato in tempo reale (posizione, pausa, volume,
+tracce) trasmesso ai dispositivi di controllo via WebSocket
+(`GET /api/tv/ws`, stesso protocollo di auth `?token=` di Condivisione
+schermo); il progresso viene salvato periodicamente in
+`playback_progress`, integrandosi con "Continua a guardare" (§7) come
+qualunque altra riproduzione. Un solo slot di riproduzione (una TV):
+avviarne una nuova sostituisce quella corrente, stesso principio di
+Condivisione schermo. Stato solo in memoria, mai nel database — il
+processo mpv non sopravvive comunque a un riavvio dell'Hub API.
+
+Verificato per davvero: mpv installato e pilotato in questo ambiente in
+modalità headless (`--vo=null --ao=null`, nessun display) contro un file
+video reale — connessione IPC su socket Unix reale, comandi
+play/pausa/seek/volume confermati via round-trip IPC, posizione in
+avanzamento osservata realmente (evento `property-change` su
+`time-pos`), `track-list` osservata e mappata correttamente (traccia
+audio rilevata su un file di test), progresso persistito nel DB SQLite
+reale sia durante la riproduzione sia allo stop. UI (`/telecomando`,
+pulsante "Riproduci sulla TV" in Film/Episodi) verificata renderizzare
+correttamente in Chromium reale (Playwright): voce di navigazione
+presente, stato vuoto mostrato correttamente quando non c'è una
+riproduzione attiva. **Non verificato**: output video/audio reale su un
+display fisico (nessun display, nemmeno virtuale, in questo ambiente —
+stessa categoria di limitazione già nota per la cattura schermo di
+Condivisione schermo) e il flusso completo con Jellyfin reale (nessuna
+istanza Jellyfin raggiungibile in questo ambiente, stessa limitazione
+nota per Film/Serie in generale).
+
 ---
 
 ## 2. Decisioni e aggiunte rispetto alla specifica originale
@@ -752,46 +794,14 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   modello e pochi strumenti ben definiti prima di valutare
   l'orchestrazione multi-modello, per non introdurre complessità non
   ancora giustificata dalla scala del progetto.
-- **Riproduzione su TV non Smart, controllata da iPhone/browser, fuori
-  roadmap**: proposta dell'utente. Il Wyse è collegato via HDMI a una TV
-  non Smart; un secondo dispositivo (iPhone o altro browser sulla Web
-  App) sceglie il contenuto dalla libreria e lo fa partire *sul Wyse*,
-  restando poi utilizzabile come telecomando (play/pausa, avanti/
-  indietro, seek, volume, audio/sottotitoli, stop, ripresa dal punto
-  precedente) — la riproduzione non avviene mai sul dispositivo che
-  controlla.
-  **Differenza architetturale chiave da tenere presente**: oggi
-  `VideoPlayer.tsx` riproduce nel `<video>` del *browser che apre la Web
-  App* — è il dispositivo che guarda a riprodurre, non il Wyse. Questa
-  proposta richiede invece un player che gira *sul Wyse stesso* (processo
-  separato dal browser), pilotato dall'Hub API — stesso pattern già
-  seguito per gli emulatori Gaming (`child_process.spawn` sull'host, mai
-  in Docker, §2/Fase 9) e coerente con la decisione già presa di tenere
-  l'Hub API sull'host proprio per l'accesso diretto al display del Wyse.
-  Player locale candidato: `mpv` con il suo socket JSON IPC (`--input-
-  ipc-server`), che espone comandi/stato in modo scriptabile — l'Hub API
-  farebbe da ponte tra i comandi ricevuti dal dispositivo di controllo e
-  quel socket, senza che il dispositivo di controllo parli mai
-  direttamente col player (stesso principio "mai i backend interni
-  esposti al frontend" di CLAUDE.md).
-  **Riuso**: il canale di comandi/stato in tempo reale può riusare lo
-  stesso meccanismo WebSocket già introdotto per la Condivisione schermo
-  (`@fastify/websocket`, auth via `?token=`) — qui però molto più
-  semplice, nessun WebRTC: solo comandi JSON e stato periodico (posizione,
-  play/pausa). La "ripresa dal punto precedente" può riusare il
-  meccanismo "Continua a guardare" già esistente lato Hub.
-  **Estensione futura menzionata dall'utente** (più TV, es. una seconda
-  Smart TV via browser/client): incoraggia a modellare da subito un
-  concetto di "dispositivo di riproduzione" distinto da "dispositivo di
-  controllo" — probabilmente estendendo la stessa astrazione `machines`
-  già usata dal Gaming (locale/remoto) invece di introdurne una nuova, ma
-  è una decisione di design da prendere quando si passerà
-  all'implementazione, non ancora affrontata qui.
-  Non ancora deciso con l'utente se/quando implementarla.
-
-(**Selezione automatica della macchina di esecuzione** e **priorità
-risorse dinamica per download/backup**: proposte chiuse, vedi Fase 7 e
-Fase 6/10.)
+(**Selezione automatica della macchina di esecuzione**, **priorità
+risorse dinamica per download/backup** e **Riproduzione su TV non
+Smart**: proposte chiuse, vedi rispettivamente Fase 7, Fase 6/10 e
+"Extra — Riproduzione su TV non Smart" sopra. L'estensione a più
+dispositivi di riproduzione menzionata dall'utente — es. una seconda
+Smart TV via browser/client — resta un passo futuro non affrontato in
+questa passata: probabile estensione dell'astrazione `machines` già
+usata dal Gaming, da decidere quando servirà davvero.)
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 

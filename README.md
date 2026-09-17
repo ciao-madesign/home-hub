@@ -185,6 +185,13 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   sia collegato all'Hub può guardarla quando vuole. Richiede un contesto
   sicuro (HTTPS) per condividere il proprio schermo (limite del browser,
   non dell'Hub) — guardare non ha questo vincolo.
+- **Riproduzione su TV non Smart** (fuori roadmap, richiesta esplicita):
+  il Wyse, collegato via HDMI a una TV non Smart, riproduce davvero
+  (mpv, pilotato dall'Hub API) — un secondo dispositivo (iPhone o
+  browser) sceglie il contenuto e resta poi un telecomando
+  (`/telecomando`: play/pausa, seek, volume, audio/sottotitoli, stop),
+  mai il dispositivo che riproduce. Il progresso si integra con
+  "Continua a guardare" come qualunque altra riproduzione.
 - Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
@@ -239,7 +246,14 @@ correttamente attraverso l'Hub) usando due client WebRTC reali al posto
 di due browser; la UI del browser (stesso protocollo) verificata
 renderizzare senza errori, ma non la cattura schermo reale — questo
 ambiente sandbox non ha un display da cui Chromium headless possa
-catturare.
+catturare. Riproduzione su TV non Smart: mpv installato e pilotato per
+davvero via il suo IPC JSON (comandi play/pausa/seek/volume confermati
+via round-trip, posizione osservata realmente in avanzamento, tracce
+audio/sottotitoli rilevate correttamente, progresso persistito nel DB
+reale) in modalità headless (`--vo=null --ao=null`) contro un file video
+reale — non verificato l'output video/audio su un display fisico
+(nessun display, nemmeno virtuale, in questo ambiente) né il flusso
+completo con un'istanza Jellyfin reale.
 
 Non ancora implementato: standby/wake automatico, port forwarding
 automatico, ricerca globale su Musica (ancora uno stub), avvio sessioni
@@ -251,7 +265,10 @@ checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 
 Richiede Node.js ≥ 20. Per il Download Manager (§12) serve anche `yt-dlp`
 nel PATH (`pip install yt-dlp`) — senza, i soli download da URL falliscono
-con un errore, il resto dell'Hub non è impattato (§31).
+con un errore, il resto dell'Hub non è impattato (§31). Per la
+Riproduzione su TV non Smart serve `mpv` nel PATH (`apt install mpv`) —
+senza, solo "Riproduci sulla TV" fallisce con un errore (503), il resto
+dell'Hub non è impattato.
 
 ```bash
 npm install
@@ -299,6 +316,7 @@ cd apps/api
 cp .env.example .env   # imposta almeno HUB_DATA_ROOT assoluto, vedi commenti nel file
 pip install --user yt-dlp   # Download Manager, §12
 sudo apt install smartmontools   # SMART, §29 — opzionale, senza: sezione "non disponibile"
+sudo apt install mpv   # Riproduzione su TV non Smart (fuori roadmap) — senza, solo "Riproduci sulla TV" fallisce
 # HUB_BACKUP_ROOT: imposta al mount point del disco di backup quando
 # disponibile (§5); senza, il backup resta "non disponibile" e l'Hub
 # continua a funzionare normalmente con un avviso.

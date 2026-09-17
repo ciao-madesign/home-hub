@@ -156,6 +156,39 @@ per l'Home Entertainment Hub, in aggiunta a Jellyfin/Immich (vedi
   protocollo di segnalazione già validato lato server) è stata comunque
   verificata renderizzare senza errori in un browser reale.
 
+## mpv/mpv — DECISIONE: INTEGRATO
+
+- Player video per la Riproduzione su TV non Smart (fuori roadmap,
+  richiesta esplicita dell'utente — vedi docs/SPECIFICHE.md): gira come
+  processo figlio dell'Hub API **sul Wyse stesso** (`child_process.spawn`,
+  stesso principio già seguito per gli emulatori Gaming), pilotato via il
+  suo IPC JSON su socket Unix (`lib/tvPlayer/mpvIpc.ts`). A differenza del
+  browser, seleziona nativamente le tracce audio/sottotitoli di un file in
+  direct play (`track-list`) — non serve il workaround
+  `AudioStreamIndex`/remux usato da `VideoPlayer.tsx` per Chromium.
+- Preferito a VLC/omxplayer: IPC JSON documentato e semplice da
+  scriptare (comandi con `request_id`, eventi `property-change` per lo
+  stato in tempo reale — niente polling), pacchettizzato, nessuna
+  dipendenza aggiuntiva oltre a ffmpeg (già presente per yt-dlp).
+- **Verificato per davvero in questo ambiente**: mpv installato
+  (`apt-get install mpv`) e pilotato in modalità headless
+  (`--vo=null --ao=null`, nessun display in questa sandbox) contro un
+  file video reale generato con ffmpeg — connessione IPC reale su socket
+  Unix, comandi play/pausa/seek/volume confermati via round-trip
+  (`get_property`/`set_property`), posizione osservata realmente in
+  avanzamento via evento `property-change` su `time-pos`, `track-list`
+  osservata e mappata correttamente (1 traccia audio rilevata su un file
+  con una sola traccia), progresso persistito nel DB SQLite reale
+  (integrazione con "Continua a guardare", §7) sia durante la
+  riproduzione sia allo stop. Nota di ambiente: il path del socket IPC
+  deve restare sotto il limite di ~108 byte di `sun_path` — irrilevante
+  in produzione (`apps/api/data/tv-mpv.sock`), scoperto durante il test
+  per via del path profondo dello scratchpad di questa sandbox.
+- **Non verificato**: output video/audio reale su un display fisico
+  (nessun display, nemmeno virtuale, in questo ambiente sandbox — stessa
+  categoria di limitazione già documentata per la cattura schermo di
+  Condivisione schermo).
+
 ## Sonarr/Sonarr — DECISIONE: STUDIARE COME RIFERIMENTO, NON INTEGRARE
 
 - Utile come riferimento architetturale per: automazione libreria, ricerca,

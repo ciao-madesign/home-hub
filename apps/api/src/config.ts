@@ -208,4 +208,16 @@ export const config = {
     "HUB_UPDATE_RESTART_ARGS_JSON",
     JSON.stringify(["systemctl", "restart", "home-hub-api"]),
   ),
+
+  // Riproduzione su TV non Smart (fuori roadmap, richiesta esplicita
+  // dell'utente — vedi docs/SPECIFICHE.md): mpv gira sul Wyse stesso,
+  // pilotato dall'Hub API via il suo IPC JSON su socket Unix
+  // (lib/tvPlayer/). Mai esposto al frontend direttamente, come ogni
+  // altro backend interno (§2).
+  mpvPath: env("HUB_MPV_PATH", "mpv"),
+  tvMpvSocketPath: env("HUB_TV_MPV_SOCKET_PATH", path.join(here, "..", "data", "tv-mpv.sock")),
+  // Argomenti extra passati a mpv (driver video/audio, tipicamente da
+  // adattare all'hardware reale) come array JSON — default pensato per
+  // un normale utilizzo desktop a schermo intero.
+  tvMpvArgsJson: process.env.HUB_TV_MPV_ARGS_JSON ?? null,
 };

@@ -32,6 +32,7 @@ import { bootstrapVpn } from "./lib/network/vpn.js";
 import { bootstrapPriorityMonitor } from "./lib/priority.js";
 import { updatesRoutes } from "./routes/updates.js";
 import { screenshareRoutes } from "./routes/screenshare.js";
+import { tvPlayerRoutes } from "./routes/tvPlayer.js";
 
 async function main() {
   // Inizializza il DB e applica le migrazioni prima di accettare richieste.
@@ -70,6 +71,7 @@ async function main() {
   await app.register(vpnRoutes);
   await app.register(updatesRoutes);
   await app.register(screenshareRoutes);
+  await app.register(tvPlayerRoutes);
 
   bootstrapBackupScheduler();
   startMdnsAdvertising();

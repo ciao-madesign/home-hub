@@ -10,6 +10,7 @@ import {
   IconHome,
   IconImage,
   IconMusic,
+  IconRemote,
   IconScreenShare,
   IconTv,
 } from "./components/icons";
@@ -37,5 +38,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/storage", label: "Storage", icon: IconHardDrive, priority: 8, searchable: false },
   { to: "/web", label: "Web", icon: IconGlobe, priority: 9, searchable: false },
   { to: "/condivisione", label: "Condivisione schermo", icon: IconScreenShare, priority: 10, searchable: false },
-  { to: "/sistema", label: "Sistema", icon: IconActivity, priority: 11, searchable: false },
+  { to: "/telecomando", label: "Telecomando TV", icon: IconRemote, priority: 11, searchable: false },
+  { to: "/sistema", label: "Sistema", icon: IconActivity, priority: 12, searchable: false },
 ];

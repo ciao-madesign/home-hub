@@ -19,6 +19,7 @@ import { Downloads } from "./pages/Downloads";
 import { Storage } from "./pages/Storage";
 import { Web } from "./pages/Web";
 import { ScreenShare } from "./pages/ScreenShare";
+import { Remote } from "./pages/Remote";
 import { System } from "./pages/System";
 import { Search } from "./pages/Search";
 
@@ -60,6 +61,7 @@ function Gate() {
         <Route path="storage" element={<Storage />} />
         <Route path="web" element={<Web />} />
         <Route path="condivisione" element={<ScreenShare />} />
+        <Route path="telecomando" element={<Remote />} />
         <Route path="sistema" element={<System />} />
         <Route path="cerca" element={<Search />} />
         <Route path="*" element={<Navigate to="/" replace />} />
