@@ -92,19 +92,21 @@ la sede in cui si registra la decisione di non costruirla.
 (= cambio privacy shared/private), cestino 7gg con ripristino,
 eliminazione definitiva (cestino o diretta con conferma), rilevamento
 duplicati per hash, ricerca per nome. Validato su filesystem reale.
-**Libreria virtuale multi-disco (§4)**: chiude la proposta aperta, solo
-per questa cartella (`Files/`) — union filesystem in user space
-(`lib/storage/library.ts`) sui dischi con `role: "data"`
-(`HUB_EXTRA_DISKS_JSON`, opt-in). Scritture: il disco con più spazio
-libero in quel momento. Letture (elenco/ricerca/duplicati/download):
-unite su tutti i dischi raggiungibili come un'unica cartella. Un move/
-rename resta sempre sul disco fisico di origine (§4 riguarda la scelta
-per i nuovi file, non gli spostamenti); il cestino segue lo stesso
-principio (nuova colonna `disk_id`, migrazione 0011). Verificato per
-davvero con due cartelle come due dischi distinti: upload, file piazzato
-manualmente sul secondo disco visibile nell'elenco/ricerca/duplicati
-(anche cross-disco), rename/move/trash/restore/download risolti sul
-disco giusto, conflitto di nome tra dischi rilevato alla creazione.
+**Libreria virtuale multi-disco (§4)**: chiude la proposta aperta —
+union filesystem in user space (`lib/storage/library.ts`) sui dischi
+con `role: "data"` (`HUB_EXTRA_DISKS_JSON`, opt-in). Scritture: il disco
+con più spazio libero in quel momento. Letture (elenco/ricerca/
+duplicati/download): unite su tutti i dischi raggiungibili come
+un'unica cartella. Un move/rename resta sempre sul disco fisico di
+origine (§4 riguarda la scelta per i nuovi file, non gli spostamenti);
+il cestino segue lo stesso principio (nuova colonna `disk_id`,
+migrazione 0011). Copre `Files/` (File Manager), `Games/` (Gaming) e
+`Downloads/` (Download Manager) — Photos non partecipa, vedi Fase 7/
+nota sotto e `lib/storage/disks.ts`. Verificato per davvero con due
+cartelle come due dischi distinti: upload, file piazzato manualmente
+sul secondo disco visibile nell'elenco/ricerca/duplicati (anche
+cross-disco), rename/move/trash/restore/download risolti sul disco
+giusto, conflitto di nome tra dischi rilevato alla creazione.
 ✅ Download Manager: coda unica download URL (yt-dlp) + torrent
 (WebTorrent embedded), pausa/ripresa/annulla reali per entrambi i
 motori, nessuno storico permanente per i completati. **Priorità di banda
@@ -115,11 +117,13 @@ quando c'è streaming Jellyfin attivo o un backup in corso (poll lazy su
 resta fisso al lancio del processo (nessun modo di cambiarlo a caldo,
 limitazione nota). Validato con yt-dlp reale, un vero scambio BitTorrent
 peer-to-peer locale, e `isStreamingActive()` contro uno stub HTTP fedele
-a `GET /Sessions` di Jellyfin.
-⬜ Games ancora su un unico disco dati: la libreria multi-disco sopra
-copre solo il File Manager, estendere Games/Downloads è un passo
-successivo separato (volutamente non affrontato in questa passata per
-non allargare troppo il cambiamento).
+a `GET /Sessions` di Jellyfin. **Estensione della libreria multi-disco
+(§4)**: ogni download avviato sceglie il disco dati con più spazio
+libero in quel momento (`pickWriteDisk()`, stesso meccanismo del File
+Manager) invece di assumere sempre `HUB_DATA_ROOT` — verificato per
+davvero: un torrent reale (magnet pubblico) crea la cartella
+`Downloads/` sul disco scelto, annullato subito dopo (non serve
+completare il download per verificare la scelta del disco).
 
 ### Fase 7 — Gaming
 🟡 Fatto: catalogo giochi (titolo, piattaforma, copertina, stato),
@@ -139,7 +143,16 @@ autoSelect.ts`). La risposta di `/api/games/:id/launch` include ora
 curl: gioco NES → locale; gioco PC senza remote → ricade su locale
 (stesso errore "nessuna ROM" della locale); stesso gioco PC dopo aver
 aggiunto una remota → la sceglie, prova il probe (fallisce, host
-irraggiungibile qui) e invia Wake-on-LAN.
+irraggiungibile qui) e invia Wake-on-LAN. **Estensione della libreria
+multi-disco (§4)**: scansione ROM (`scanForNewGames`), copertine, avvio
+locale e backup salvataggi risolvono `Games/` su tutti i dischi dati
+configurati (`lib/storage/library.ts`, stesso meccanismo del File
+Manager) invece di assumere sempre `HUB_DATA_ROOT` — `rom_path`/
+`cover_path`/`save_path` restano percorsi relativi portabili, risolti al
+bisogno. Verificato per davvero con due cartelle come due dischi
+distinti: ROM piazzata manualmente sul secondo disco trovata dalla
+scansione e poi correttamente risolta all'avvio, backup del salvataggio
+creato sul disco con più spazio libero e verificato byte per byte.
 ⬜ Non fatto: avvio effettivo di una sessione Sunshine/Moonlight (solo
 Wake-on-LAN + verifica stato — vedi proposte aperte, §3), spegnimento
 remoto sicuro (implementato ma richiede un agente HTTP sul PC remoto non
@@ -751,33 +764,26 @@ con l'utente il 2026-09-17.
 
 ### Risolvibili senza hardware reale — priorità
 
-1. **Libreria virtuale multi-disco per Games/Downloads/Photos**: §4
-   descrive una singola libreria virtuale multi-disco — implementata per
-   il File Manager (Fase 6, `lib/storage/library.ts`), non ancora estesa
-   a Gaming/Download Manager/Photos, che continuano ad assumere un unico
-   disco dati (`HUB_DATA_ROOT`). Estenderla è la più immediata delle
-   proposte aperte: il meccanismo di base esiste già ed è riusabile,
-   resta solo da applicarlo ai tre moduli.
-2. **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
+1. **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
    di gioco su PC remoto oggi si ferma a Wake-on-LAN + verifica stato.
    Avviare davvero un'app/gioco via Sunshine richiede implementare il
    suo flusso di pairing (PIN + certificati TLS client) — scope non
    banale, ma costruibile e verificabile qui contro uno stub HTTP fedele
    al protocollo Sunshine (stesso approccio già usato per Jellyfin/
    Immich/DuckDNS), senza bisogno del PC remoto reale.
-3. **Estensione "dispositivo di riproduzione" per più TV**: la
+2. **Estensione "dispositivo di riproduzione" per più TV**: la
    Riproduzione su TV (Extra, sopra) oggi assume un solo output (il Wyse
    via HDMI). Estendere a più dispositivi (es. una seconda Smart TV via
    browser/client) è puro lavoro di astrazione software — probabile
    estensione della stessa `machines` già usata dal Gaming — non
    affrontata finché serve davvero un secondo dispositivo.
-4. **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
+3. **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
    in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
    "Continua a guardare" già gestito lato Hub), andrebbe creato un
    account Jellyfin/Immich per ogni utente Hub alla creazione del
    profilo. Verificabile contro gli stessi stub HTTP già usati per le
    altre integrazioni Jellyfin/Immich.
-5. **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
+4. **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
    dell'utente, non richiesta da SPEC_V1/V2. Idea: un "AI Orchestrator"
    come ulteriore livello dell'Hub API che riceve richieste in linguaggio
    naturale, le instrada a uno o più modelli locali (es. un modello
@@ -840,10 +846,11 @@ con l'utente il 2026-09-17.
   dover concedere privilegi di rete/host estesi a un container.
 
 (**Selezione automatica della macchina di esecuzione**, **priorità
-risorse dinamica per download/backup**, **Riproduzione su TV non Smart**
-e **rimozione di Musica dallo scope**: proposte/decisioni chiuse, vedi
-rispettivamente Fase 7, Fase 6/10, "Extra — Riproduzione su TV non
-Smart" e Fase 5, sopra.)
+risorse dinamica per download/backup**, **libreria virtuale multi-disco
+per Games/Downloads**, **Riproduzione su TV non Smart** e **rimozione di
+Musica dallo scope**: proposte/decisioni chiuse, vedi rispettivamente
+Fase 7, Fase 6/10, Fase 6/7, "Extra — Riproduzione su TV non Smart" e
+Fase 5, sopra.)
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 

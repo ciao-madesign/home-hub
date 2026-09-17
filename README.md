@@ -100,11 +100,13 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   atomica e verifica di integrità per hash, skip dei file invariati
   (ripresa naturale dopo un'interruzione), storico dei run. Ripristino
   di base da disco di backup verso il disco dati, dietro conferma
-  esplicita. **Non implementato**: libreria virtuale multi-disco con
-  distribuzione automatica dei nuovi file (File Manager/Gaming/Download
-  Manager assumono ancora un unico disco dati), wizard di recovery
-  guidato su hardware nuovo, riapplicazione automatica delle
-  configurazioni Hub/Docker ripristinate su un sistema live.
+  esplicita. **Libreria virtuale multi-disco** (§4): File Manager,
+  Gaming e Download Manager distribuiscono i nuovi contenuti sul disco
+  dati con più spazio libero tra quelli configurati (`role: "data"`,
+  `HUB_EXTRA_DISKS_JSON`) invece di assumere sempre un unico disco.
+  **Non implementato**: wizard di recovery guidato su hardware nuovo,
+  riapplicazione automatica delle configurazioni Hub/Docker ripristinate
+  su un sistema live.
 - **Rete — discovery locale** (§21, prima parte della Fase 9): l'Hub si
   annuncia sulla LAN come `home-hub.local` via mDNS (`bonjour-service`,
   nessun `avahi-daemon` richiesto), mostrato con QR code sia nella
@@ -254,8 +256,7 @@ reale — non verificato l'output video/audio su un display fisico
 completo con un'istanza Jellyfin reale.
 
 Non ancora implementato: standby/wake automatico, port forwarding
-automatico, avvio sessioni Sunshine/Moonlight, distribuzione multi-disco
-per Games/Downloads/Photos (il File Manager ce l'ha, vedi sopra). Musica
+automatico, avvio sessioni Sunshine/Moonlight. Musica
 rimossa dallo scope su richiesta dell'utente. Vedi la roadmap completa e la
 checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 

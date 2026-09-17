@@ -88,7 +88,7 @@ export async function downloadsRoutes(app: FastifyInstance) {
   app.post("/api/downloads/:id/resume", { preHandler: requireAuth }, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
-      resumeDownload(id);
+      await resumeDownload(id);
       return { ok: true };
     } catch (err) {
       if (handleDownloadsError(err, reply)) return;

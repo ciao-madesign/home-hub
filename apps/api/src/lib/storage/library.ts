@@ -5,20 +5,23 @@ import { dataDiskCandidates, type ConfiguredDisk } from "./disks.js";
 
 /**
  * Libreria virtuale multi-disco (§4, proposta aperta chiusa in
- * docs/SPECIFICHE.md): usata oggi solo dal File Manager (lib/files.ts)
- * per la cartella `Files/` — Games/Downloads/Photos restano su un unico
- * disco dati, estenderli è un passo successivo separato.
+ * docs/SPECIFICHE.md): usata da File Manager (lib/files.ts, cartella
+ * `Files/`), Gaming (lib/gaming/, cartella `Games/`) e Download Manager
+ * (lib/downloads/manager.ts, cartella `Downloads/`). Photos non
+ * partecipa: Immich gestisce il proprio storage in autonomia (bind-mount
+ * Docker separato), l'Hub API non tocca mai quei file direttamente.
  *
  * Funziona come un semplice union filesystem in user space (stesso
  * principio di strumenti come mergerfs, qui reimplementato ad-hoc perché
- * serve solo per questa cartella): ogni disco con `role: "data"`
+ * serve solo per queste cartelle): ogni disco con `role: "data"`
  * (dataDiskCandidates(), sempre almeno HUB_DATA_ROOT) ha una propria
- * copia fisica dell'albero `Files/...`; le funzioni di lettura qui sotto
- * uniscono il contenuto di tutti i dischi raggiungibili come se fosse
- * un'unica cartella, quelle di scrittura scelgono UN disco (quello con
- * più spazio libero) per il nuovo contenuto. Non c'è redistribuzione dei
- * file già esistenti: la scelta del disco riguarda solo cosa viene
- * creato da questo momento in poi, come da §4.
+ * copia fisica dell'albero (`Files/...`, `Games/...`, `Downloads/...`);
+ * le funzioni di lettura qui sotto uniscono il contenuto di tutti i
+ * dischi raggiungibili come se fosse un'unica cartella, quelle di
+ * scrittura scelgono UN disco (quello con più spazio libero) per il
+ * nuovo contenuto. Non c'è redistribuzione dei file già esistenti: la
+ * scelta del disco riguarda solo cosa viene creato da questo momento in
+ * poi, come da §4.
  */
 
 async function diskFreeBytes(disk: ConfiguredDisk): Promise<number | null> {

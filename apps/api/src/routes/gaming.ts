@@ -19,13 +19,14 @@ import {
   toSaveBackupDto,
   updateGame,
 } from "../lib/gaming/store.js";
-import { scanForNewGames, gamesRoot } from "../lib/gaming/scan.js";
+import { scanForNewGames } from "../lib/gaming/scan.js";
 import { isRunning, launchLocal, stopLocal, EmulatorError } from "../lib/gaming/emulator.js";
 import { probeTcp } from "../lib/gaming/machineStatus.js";
 import { resolveExecutionMachine } from "../lib/gaming/autoSelect.js";
 import { sendWakeOnLan, WolError } from "../lib/gaming/wol.js";
 import { backupSave } from "../lib/gaming/saveBackup.js";
 import { assertSafeRelativePath, UnsafePathError } from "../lib/pathSafety.js";
+import { absOnDisk, pickWriteDisk, resolveAcrossDisks } from "../lib/storage/library.js";
 import { requireAuth } from "../plugins/auth.js";
 
 function handleGamingError(err: unknown, reply: FastifyReply): boolean {
@@ -148,11 +149,10 @@ export async function gamingRoutes(app: FastifyInstance) {
     const game = getGame(id);
     if (!game?.cover_path) return reply.code(404).send();
     try {
-      const abs = path.join(gamesRoot(), ...assertSafeRelativePath(game.cover_path));
-      const stat = await fs.stat(abs).catch(() => null);
-      if (!stat) return reply.code(404).send();
+      const found = await resolveAcrossDisks("Games", assertSafeRelativePath(game.cover_path));
+      if (!found) return reply.code(404).send();
       reply.header("cache-control", "public, max-age=86400");
-      return reply.send(fsSync.createReadStream(abs));
+      return reply.send(fsSync.createReadStream(found.abs));
     } catch (err) {
       if (err instanceof UnsafePathError) return reply.code(400).send();
       throw err;
@@ -167,11 +167,12 @@ export async function gamingRoutes(app: FastifyInstance) {
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "invalid_body", message: "Immagine mancante" });
 
-    const dir = path.join(gamesRoot(), ".covers");
-    await fs.mkdir(dir, { recursive: true });
+    const disk = await pickWriteDisk();
     const ext = path.extname(file.filename) || ".jpg";
     const relPath = `.covers/${id}${ext}`;
-    await fs.writeFile(path.join(gamesRoot(), relPath), await file.toBuffer());
+    const abs = absOnDisk(disk, "Games", [relPath]);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, await file.toBuffer());
 
     updateGame(id, { cover_path: relPath });
     return { game: toGameDto(getGame(id)!) };
@@ -194,8 +195,9 @@ export async function gamingRoutes(app: FastifyInstance) {
         if (!game.rom_path) {
           return reply.code(409).send({ error: "conflict", message: "Nessuna ROM configurata per questo gioco" });
         }
-        const romAbs = path.join(gamesRoot(), ...assertSafeRelativePath(game.rom_path));
-        launchLocal(id, game.platform, romAbs);
+        const found = await resolveAcrossDisks("Games", assertSafeRelativePath(game.rom_path));
+        if (!found) return reply.code(409).send({ error: "conflict", message: "ROM non trovata su nessun disco" });
+        launchLocal(id, game.platform, found.abs);
         return { mode: "local", started: true, machineId: machine.id, machineName: machine.name };
       }
 

@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import { config } from "../../config.js";
 import { startTorrentDownload, updateTorrentThrottle } from "./torrent.js";
 import { startYtDlpDownload } from "./ytdlp.js";
@@ -8,6 +7,7 @@ import type { DownloadKind, DownloadRow } from "./store.js";
 import type { EngineCallbacks, EngineHandle } from "./types.js";
 import { effectiveDownloadRateKbps } from "../priority.js";
 import { isBackupRunning } from "../storage/backup.js";
+import { absOnDisk, pickWriteDisk } from "../storage/library.js";
 
 export class DownloadsError extends Error {
   constructor(
@@ -22,30 +22,21 @@ const activeHandles = new Map<string, EngineHandle>();
 /** Id per cui è stata richiesta la cancellazione: alla chiusura del motore la riga va eliminata, non marcata errore. */
 const cancelledIds = new Set<string>();
 
-function downloadsRoot(): string {
-  return path.join(config.dataRoot, "Downloads");
-}
-
-async function ensureDownloadsRoot(): Promise<string> {
-  const dir = downloadsRoot();
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
-}
-
 function activeCount(): number {
   return store.listByStatus("downloading").length;
 }
 
 /** Avvia il prossimo elemento in coda finché non si raggiunge il numero massimo di download attivi (§12/§32). */
-export function processQueue(): void {
+export async function processQueue(): Promise<void> {
   while (activeCount() < config.downloadMaxConcurrent) {
     const [next] = store.listByStatus("queued");
     if (!next) break;
-    startJob(next);
+    await startJob(next);
   }
 }
 
-function startJob(row: DownloadRow): void {
+/** Libreria virtuale multi-disco (§4): ogni download è contenuto nuovo, sceglie il disco con più spazio libero al momento in cui parte davvero (non alla messa in coda). */
+async function startJob(row: DownloadRow): Promise<void> {
   store.updateDownload(row.id, { status: "downloading", error_message: null });
 
   const callbacks: EngineCallbacks = {
@@ -73,7 +64,9 @@ function startJob(row: DownloadRow): void {
     },
   };
 
-  const dir = downloadsRoot();
+  const disk = await pickWriteDisk();
+  const dir = absOnDisk(disk, "Downloads", []);
+  await fs.mkdir(dir, { recursive: true });
   const handle =
     row.kind === "url"
       ? startYtDlpDownload(row.source, dir, callbacks, effectiveDownloadRateKbps(isBackupRunning()))
@@ -87,9 +80,8 @@ export async function enqueue(
   kind: DownloadKind,
   source: string,
 ): Promise<DownloadRow> {
-  await ensureDownloadsRoot();
   const row = store.createDownload(userId, kind, source);
-  processQueue();
+  await processQueue();
   return row;
 }
 
@@ -106,7 +98,7 @@ export function pauseDownload(id: string): void {
   }
 }
 
-export function resumeDownload(id: string): void {
+export async function resumeDownload(id: string): Promise<void> {
   const row = store.getDownload(id);
   if (!row) throw new DownloadsError("Download non trovato");
   if (row.status !== "paused") return;
@@ -117,7 +109,7 @@ export function resumeDownload(id: string): void {
     store.updateDownload(id, { status: "downloading" });
   } else {
     store.updateDownload(id, { status: "queued" });
-    processQueue();
+    await processQueue();
   }
 }
 
@@ -143,9 +135,9 @@ export function getDownloadsSummary(): { active: number; errored: number } {
 }
 
 /** Da chiamare all'avvio dell'Hub API: nessun processo/torrent sopravvive a un riavvio. */
-export function bootstrapDownloads(): void {
+export async function bootstrapDownloads(): Promise<void> {
   store.resetStaleDownloadingRows();
-  processQueue();
+  await processQueue();
   bootstrapDynamicTorrentThrottle();
 }
 

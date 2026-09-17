@@ -20,12 +20,13 @@ export interface ConfiguredDisk {
   path: string;
   /**
    * "data": partecipa alla libreria virtuale multi-disco (§4,
-   * lib/storage/library.ts) — i nuovi file del File Manager possono
-   * finire qui. Un disco extra senza `role` resta solo informativo (visibile
-   * in Storage, mai scelto automaticamente) — va dichiarato esplicitamente
-   * "data" per diventare un bersaglio di scrittura, per non cambiare
-   * comportamento a chi ha già configurato HUB_EXTRA_DISKS_JSON prima di
-   * questa funzionalità.
+   * lib/storage/library.ts) — i nuovi file/ROM/download del File
+   * Manager, Gaming e Download Manager possono finire qui. Un disco
+   * extra senza `role` resta solo informativo (visibile in Storage, mai
+   * scelto automaticamente) — va dichiarato esplicitamente "data" per
+   * diventare un bersaglio di scrittura, per non cambiare comportamento
+   * a chi ha già configurato HUB_EXTRA_DISKS_JSON prima di questa
+   * funzionalità.
    */
   role?: "data";
 }
@@ -46,7 +47,7 @@ function configuredDisks(): ConfiguredDisk[] {
   return disks;
 }
 
-/** Dischi che partecipano alla libreria virtuale multi-disco del File Manager (§4). */
+/** Dischi che partecipano alla libreria virtuale multi-disco (§4): File Manager, Gaming e Download Manager. */
 export function dataDiskCandidates(): ConfiguredDisk[] {
   return configuredDisks().filter((d) => d.role === "data");
 }
@@ -54,10 +55,11 @@ export function dataDiskCandidates(): ConfiguredDisk[] {
 /**
  * Rilevamento dischi (§29): visibilità (capacità, spazio libero, stato
  * connesso/non disponibile, SMART) sui mount point configurati. La
- * libreria virtuale multi-disco (§4, lib/storage/library.ts) è
- * implementata per il File Manager, usando i dischi con `role: "data"`
- * qui sotto — Games/Downloads/Photos assumono ancora un unico disco dati
- * (`HUB_DATA_ROOT`), vedi docs/SPECIFICHE.md.
+ * libreria virtuale multi-disco (§4, lib/storage/library.ts) usa i
+ * dischi con `role: "data"` qui sotto — implementata per File Manager,
+ * Gaming e Download Manager; Photos non si applica (Immich gestisce il
+ * proprio storage in autonomia, bind-mount Docker separato, mai
+ * toccato direttamente dall'Hub API — vedi docs/SPECIFICHE.md).
  */
 export async function listDisks(): Promise<DiskInfo[]> {
   return Promise.all(
