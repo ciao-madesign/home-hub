@@ -46,14 +46,6 @@ export const IconImage = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
-export const IconMusic = (p: SVGProps<SVGSVGElement>) => (
-  <Icon {...p}>
-    <path d="M9 18V5l11-2v13" />
-    <circle cx="6" cy="18" r="3" />
-    <circle cx="17" cy="16" r="3" />
-  </Icon>
-);
-
 export const IconGamepad = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <rect x="2" y="8" width="20" height="10" rx="5" />

@@ -24,8 +24,7 @@ const querySchema = z.object({ q: z.string().trim().min(1).max(120) });
  * non contribuisce risultati. Foto: match per nome file (non la ricerca
  * "smart" di Immich, ML, disattivata di default per l'hardware iniziale,
  * §3) — meno precisa ma senza requisiti hardware aggiuntivi, decisione
- * dell'utente. Musica resta esclusa: è ancora uno stub, non ha ancora
- * contenuti da cercare — vedi docs/SPECIFICHE.md.
+ * dell'utente.
  */
 export async function searchRoutes(app: FastifyInstance) {
   app.get("/api/search", { preHandler: requireAuth }, async (req, reply) => {

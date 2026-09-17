@@ -57,8 +57,7 @@ della ricerca "smart"/ML, disattivata di default per l'hardware
 iniziale §3, chiude la proposta aperta), Giochi e File (shared+private
 dell'utente corrente) e raggruppa i risultati per tipo. Ogni fonte è
 indipendente — se una non risponde, la ricerca continua comunque sulle
-altre (§31). Musica resta esclusa: è ancora uno stub, senza contenuti da
-cercare.
+altre (§31).
 Area Sistema, gestione profilo, responsive desktop/mobile, dark theme,
 focus visibile per D-pad/TV. Non verificato su una TV/telecomando reale.
 
@@ -78,6 +77,15 @@ lightbox full screen, slideshow a intervallo configurabile.
 🟡 Validato contro server di test che replicano le API REST (Jellyfin e
 Immich reali non raggiungibili in questo ambiente — registry Docker
 bloccato). Da validare contro istanze vere prima del deploy.
+
+**Musica: rimossa dallo scope su richiesta esplicita dell'utente.** Era
+tracciata come stub in attesa di implementazione (album, cartelle,
+player persistente, §SPEC_V1). Rimossi la pagina, la voce di sidebar/
+navigazione, l'icona dedicata e i riferimenti nella ricerca globale
+(§16) e in TopBar — nessun contenuto era mai stato costruito, solo un
+placeholder. `SPEC_V1.md` resta invariata come da convenzione (fonte di
+verità originale, non riflette lo stato di implementazione); questa è
+la sede in cui si registra la decisione di non costruirla.
 
 ### Fase 6 — File e Download
 ✅ File Manager: cartelle, upload/download, rinomina, spostamento
@@ -735,7 +743,65 @@ integrano la spec (che è a livello di prodotto, non di implementazione):
 ## 3. Proposte aperte / da decidere con l'utente
 
 Idee emerse durante l'implementazione, non ancora richieste esplicitamente
-dalla spec né decise — da validare con l'utente prima di implementarle:
+dalla spec né decise — da validare con l'utente prima di implementarle.
+Ordinate per priorità: prima quelle risolvibili interamente in questo
+ambiente (nessun hardware reale necessario), poi quelle bloccate
+sull'hardware (Wyse/router/connessione dell'utente) — decisione presa
+con l'utente il 2026-09-17.
+
+### Risolvibili senza hardware reale — priorità
+
+1. **Libreria virtuale multi-disco per Games/Downloads/Photos**: §4
+   descrive una singola libreria virtuale multi-disco — implementata per
+   il File Manager (Fase 6, `lib/storage/library.ts`), non ancora estesa
+   a Gaming/Download Manager/Photos, che continuano ad assumere un unico
+   disco dati (`HUB_DATA_ROOT`). Estenderla è la più immediata delle
+   proposte aperte: il meccanismo di base esiste già ed è riusabile,
+   resta solo da applicarlo ai tre moduli.
+2. **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
+   di gioco su PC remoto oggi si ferma a Wake-on-LAN + verifica stato.
+   Avviare davvero un'app/gioco via Sunshine richiede implementare il
+   suo flusso di pairing (PIN + certificati TLS client) — scope non
+   banale, ma costruibile e verificabile qui contro uno stub HTTP fedele
+   al protocollo Sunshine (stesso approccio già usato per Jellyfin/
+   Immich/DuckDNS), senza bisogno del PC remoto reale.
+3. **Estensione "dispositivo di riproduzione" per più TV**: la
+   Riproduzione su TV (Extra, sopra) oggi assume un solo output (il Wyse
+   via HDMI). Estendere a più dispositivi (es. una seconda Smart TV via
+   browser/client) è puro lavoro di astrazione software — probabile
+   estensione della stessa `machines` già usata dal Gaming — non
+   affrontata finché serve davvero un secondo dispositivo.
+4. **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
+   in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
+   "Continua a guardare" già gestito lato Hub), andrebbe creato un
+   account Jellyfin/Immich per ogni utente Hub alla creazione del
+   profilo. Verificabile contro gli stessi stub HTTP già usati per le
+   altre integrazioni Jellyfin/Immich.
+5. **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
+   dell'utente, non richiesta da SPEC_V1/V2. Idea: un "AI Orchestrator"
+   come ulteriore livello dell'Hub API che riceve richieste in linguaggio
+   naturale, le instrada a uno o più modelli locali (es. un modello
+   generale, uno per reasoning, uno agentico con tool calling) e concede
+   loro accesso solo a strumenti controllati (`search_movies`,
+   `start_download`, ecc.), mai diretto a filesystem/Docker/DB — stesso
+   principio già seguito ovunque nell'Hub (l'AI diventerebbe un
+   chiamante dell'API interna, non un bypass). Azioni distruttive
+   richiederebbero conferma esplicita lato Hub, non lato modello.
+   Il Wyse 5070 (Intel J4105, 8 GB RAM) non è in grado di eseguire
+   modelli locali in modo utilizzabile — soluzione discussa: eseguire
+   Ollama/i modelli su un PC remoto già in rete (lo stesso eventualmente
+   usato per il Gaming, §10) e farli raggiungere dall'Hub API via HTTP,
+   stesso pattern di Jellyfin/Immich (client HTTP dietro l'API, 503 non
+   fatale se il PC è spento o irraggiungibile). Il client HTTP verso
+   Ollama e l'orchestrazione sono costruibili/verificabili qui contro uno
+   stub (l'API di Ollama è documentata pubblicamente); resta ultima in
+   priorità perché è la proposta più ampia in scope e non ancora decisa
+   nel dettaglio con l'utente (quale/i modelli, quali strumenti concedere
+   per primi). Se approvata, partire con un solo modello e pochi
+   strumenti ben definiti prima di valutare l'orchestrazione
+   multi-modello.
+
+### Bloccate sull'hardware reale
 
 - **L'utente è su EOLO (FWA) — probabile CGNAT, port forwarding a
   rischio**: informazione raccolta in conversazione, da verificare
@@ -745,23 +811,23 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   confermato, il port forwarding manuale non funzionerà, ma il tunnel di
   fallback (Cloudflare Tunnel, gratuito, nessuna porta da aprire) è ora
   implementato — vedi Fase 9 e README "Deploy". Resta da fare solo la
-  verifica del CGNAT stesso quando l'hardware sarà disponibile.
-- **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
-  in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
-  "Continua a guardare" già gestito lato Hub), andrebbe creato un account
-  Jellyfin/Immich per ogni utente Hub alla creazione del profilo.
-- **Hub API fuori da Docker, sull'host (decisione presa dall'utente)**:
-  l'Hub API lancia gli emulatori come processo figlio
-  (`child_process.spawn`) del proprio processo Node, e quel processo deve
-  avere accesso diretto allo schermo/controller del Wyse — cosa che un
-  container Docker normalmente non ha (servirebbe passthrough X11/Wayland
-  + `/dev/dri`, configurazione non banale per un'app interattiva). La
-  stessa logica vale per Moonlight (Remote Gaming, V2): la spec lo vuole
-  come app di sistema sul Wyse, non containerizzata.
+  verifica del CGNAT stesso quando l'hardware sarà disponibile — nessun
+  lavoro di codice ulteriore possibile prima di allora.
+
+### Decisioni già chiuse (riferimento)
+
+- **Hub API fuori da Docker, sull'host**: l'Hub API lancia gli emulatori
+  come processo figlio (`child_process.spawn`) del proprio processo
+  Node, e quel processo deve avere accesso diretto allo schermo/
+  controller del Wyse — cosa che un container Docker normalmente non ha
+  (servirebbe passthrough X11/Wayland + `/dev/dri`, configurazione non
+  banale per un'app interattiva). La stessa logica vale per Moonlight
+  (Remote Gaming, V2): la spec lo vuole come app di sistema sul Wyse,
+  non containerizzata.
   Valutate due strade — (1) far girare l'Hub API sull'host con accesso
-  diretto al display, oppure (2) tenerla in Docker e delegare l'avvio a un
-  piccolo agente locale sull'host — **è stata scelta la (1)**: l'Hub API
-  gira come servizio **systemd** direttamente sul Wyse (vedi
+  diretto al display, oppure (2) tenerla in Docker e delegare l'avvio a
+  un piccolo agente locale sull'host — **è stata scelta la (1)**: l'Hub
+  API gira come servizio **systemd** direttamente sul Wyse (vedi
   `infra/systemd/home-hub-api.service`), mentre Web App/Jellyfin/Immich
   restano containerizzati (`infra/docker-compose.yml`). Motivazione: per
   il gioco locale e il Remote Gaming la latenza durante il gioco dipende
@@ -772,51 +838,12 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   Effetto collaterale positivo: anche Wake-on-LAN (broadcast UDP) e la
   lettura di temperatura/CPU reali (§30) diventano più semplici senza
   dover concedere privilegi di rete/host estesi a un container.
-- **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
-  di gioco su PC remoto oggi si ferma a Wake-on-LAN + verifica stato.
-  Avviare davvero un'app/gioco via Sunshine richiede implementare il suo
-  flusso di pairing (PIN + certificati TLS client) — scope non banale,
-  volutamente rimandato.
-- **Libreria virtuale multi-disco per Games/Downloads/Photos**: §4
-  descrive una singola libreria virtuale multi-disco — implementata per
-  il File Manager (Fase 6, `lib/storage/library.ts`), non ancora
-  estesa a Gaming/Download Manager/Photos, che continuano ad assumere un
-  unico disco dati (`HUB_DATA_ROOT`). Estenderla è più semplice ora che
-  il meccanismo di base esiste già ed è riusabile, ma resta un passo
-  separato volutamente non affrontato in questa passata.
-- **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
-  dell'utente, non richiesta da SPEC_V1/V2. Idea: un "AI Orchestrator"
-  come ulteriore livello dell'Hub API che riceve richieste in linguaggio
-  naturale, le instrada a uno o più modelli locali (es. un modello
-  generale, uno per reasoning, uno agentico con tool calling) e concede
-  loro accesso solo a strumenti controllati (`search_movies`,
-  `start_download`, ecc.), mai diretto a filesystem/Docker/DB — stesso
-  principio già seguito ovunque nell'Hub (l'AI diventerebbe un chiamante
-  dell'API interna, non un bypass). Azioni distruttive richiederebbero
-  conferma esplicita lato Hub, non lato modello.
-  **Bloccante hardware**: il Wyse 5070 (Intel J4105, 8 GB RAM) non è in
-  grado di eseguire modelli locali in modo utilizzabile, tantomeno più
-  d'uno in orchestrazione — la proposta stessa presuppone hardware ben
-  più potente (es. Ryzen 7 + 32 GB RAM).
-  **Possibile soluzione discussa**: eseguire Ollama/i modelli su un PC
-  remoto già in rete (lo stesso eventualmente usato per il Gaming, §10) e
-  farli raggiungere dall'Hub API via HTTP — stesso pattern di
-  Jellyfin/Immich (client HTTP dietro l'API, 503 non fatale se il PC è
-  spento o irraggiungibile, mai esposto al frontend direttamente).
-  Riuserebbe anche l'auto-selezione/Wake-on-LAN già costruiti per il
-  Gaming per accendere il PC su richiesta. Non ancora deciso con
-  l'utente se/quando procedere; se approvato, partire con un solo
-  modello e pochi strumenti ben definiti prima di valutare
-  l'orchestrazione multi-modello, per non introdurre complessità non
-  ancora giustificata dalla scala del progetto.
+
 (**Selezione automatica della macchina di esecuzione**, **priorità
-risorse dinamica per download/backup** e **Riproduzione su TV non
-Smart**: proposte chiuse, vedi rispettivamente Fase 7, Fase 6/10 e
-"Extra — Riproduzione su TV non Smart" sopra. L'estensione a più
-dispositivi di riproduzione menzionata dall'utente — es. una seconda
-Smart TV via browser/client — resta un passo futuro non affrontato in
-questa passata: probabile estensione dell'astrazione `machines` già
-usata dal Gaming, da decidere quando servirà davvero.)
+risorse dinamica per download/backup**, **Riproduzione su TV non Smart**
+e **rimozione di Musica dallo scope**: proposte/decisioni chiuse, vedi
+rispettivamente Fase 7, Fase 6/10, "Extra — Riproduzione su TV non
+Smart" e Fase 5, sopra.)
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 

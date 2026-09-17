@@ -32,7 +32,7 @@ export class BackupError extends Error {
 let runningPromise: Promise<BackupRunRow> | null = null;
 
 // --- Manifest: dati personali (§5) -----------------------------------------
-// Movies/Series/Music (Jellyfin) sono esclusi deliberatamente: librerie
+// Movies/Series (Jellyfin) sono esclusi deliberatamente: librerie
 // multimediali sostituibili, non "dati personali" nel senso della spec —
 // vedi decisione in docs/SPECIFICHE.md.
 

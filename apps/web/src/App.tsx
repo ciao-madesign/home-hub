@@ -12,7 +12,6 @@ import { Series } from "./pages/Series";
 import { SeriesDetail } from "./pages/SeriesDetail";
 import { EpisodeDetail } from "./pages/EpisodeDetail";
 import { Photos } from "./pages/Photos";
-import { Music } from "./pages/Music";
 import { Games } from "./pages/Games";
 import { Files } from "./pages/Files";
 import { Downloads } from "./pages/Downloads";
@@ -54,7 +53,6 @@ function Gate() {
         <Route path="serie/:id" element={<SeriesDetail />} />
         <Route path="serie/episodi/:episodeId" element={<EpisodeDetail />} />
         <Route path="foto" element={<Photos />} />
-        <Route path="musica" element={<Music />} />
         <Route path="giochi" element={<Games />} />
         <Route path="file" element={<Files />} />
         <Route path="download" element={<Downloads />} />

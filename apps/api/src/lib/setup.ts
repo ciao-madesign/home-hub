@@ -69,7 +69,6 @@ const LIBRARY_DIRS = [
   "Files/shared",
   "Media/Movies",
   "Media/Series",
-  "Media/Music",
   "Photos",
   "Games",
   "Downloads",

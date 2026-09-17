@@ -47,7 +47,7 @@ export function TopBar() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Cerca in Film, Serie, Foto, Musica, Giochi, File…"
+          placeholder="Cerca in Film, Serie, Foto, Giochi, File…"
           aria-label="Ricerca globale"
           style={{
             flex: 1,

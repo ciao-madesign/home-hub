@@ -1,7 +1,7 @@
 # Home Entertainment Hub
 
 Home Entertainment Hub personale per Dell Wyse 5070: un'unica Web App
-proprietaria (React) che aggrega Film, Serie, Foto, Musica, Giochi, File,
+proprietaria (React) che aggrega Film, Serie, Foto, Giochi, File,
 Download, Backup e gestione del sistema, parlando esclusivamente con
 un'API centrale (Hub Orchestrator) e mai direttamente con i backend interni
 (Jellyfin, Immich, filesystem, database).
@@ -163,8 +163,7 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   backup > download.
 - **Ricerca globale unificata** (§16): un endpoint aggregatore interroga
   Film/Serie, Foto (match per nome file), Giochi e File in parallelo e
-  mostra i risultati raggruppati per tipo dalla barra di ricerca in alto
-  — Musica non ancora inclusa (è ancora uno stub).
+  mostra i risultati raggruppati per tipo dalla barra di ricerca in alto.
 - **Web** (fuori roadmap, richiesta esplicita): sezione con collegamenti
   rapidi a siti esterni (es. La7 streaming) gestiti dagli admin, aperti
   nel browser reale del dispositivo — mai incorporati nell'Hub, perché
@@ -192,7 +191,6 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   (`/telecomando`: play/pausa, seek, volume, audio/sottotitoli, stop),
   mai il dispositivo che riproduce. Il progresso si integra con
   "Continua a guardare" come qualunque altra riproduzione.
-- Musica resta stub (fase successiva).
 
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
 validate contro server di test che replicano le rispettive API REST
@@ -256,9 +254,9 @@ reale — non verificato l'output video/audio su un display fisico
 completo con un'istanza Jellyfin reale.
 
 Non ancora implementato: standby/wake automatico, port forwarding
-automatico, ricerca globale su Musica (ancora uno stub), avvio sessioni
-Sunshine/Moonlight, distribuzione multi-disco per Games/Downloads/Photos
-(il File Manager ce l'ha, vedi sopra). Vedi la roadmap completa e la
+automatico, avvio sessioni Sunshine/Moonlight, distribuzione multi-disco
+per Games/Downloads/Photos (il File Manager ce l'ha, vedi sopra). Musica
+rimossa dallo scope su richiesta dell'utente. Vedi la roadmap completa e la
 checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
