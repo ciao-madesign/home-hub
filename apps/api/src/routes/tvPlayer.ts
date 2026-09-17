@@ -4,6 +4,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { getEpisode, getMovie } from "../lib/jellyfin.js";
 import { getProgress } from "../lib/playback.js";
+import { createSession, revokeSession, upsertDevice } from "../lib/sessions.js";
 import * as tvPlayer from "../lib/tvPlayer/session.js";
 import { TvPlayerError } from "../lib/tvPlayer/session.js";
 import { handleServiceError } from "../lib/serviceError.js";
@@ -32,9 +33,16 @@ const controlBodySchema = z.discriminatedUnion("action", [
  * (mpv, lib/tvPlayer/), gli altri dispositivi fanno solo da telecomando.
  * `/play` avvia mpv sullo stesso endpoint `/api/media/:id/stream` già
  * usato da VideoPlayer.tsx (mai reinventare l'integrazione Jellyfin),
- * raggiunto in loopback col token dell'utente che ha avviato la
- * riproduzione — stesso compromesso già documentato in plugins/auth.ts
- * per <video src>/<img>.
+ * raggiunto in loopback. mpv riceve una sessione Hub dedicata appena
+ * creata, MAI il token personale dell'utente che ha avviato la
+ * riproduzione: quel token finirebbe in chiaro nell'argv del processo
+ * mpv (leggibile da chiunque sulla macchina con `ps`/`/proc/<pid>/
+ * cmdline` per tutta la durata della riproduzione, anche ore) e la sua
+ * scadenza seguirebbe la sessione del browser di chi ha premuto play,
+ * non la riproduzione stessa — un logout o un token scaduto a metà
+ * film interromperebbe la TV per tutti. La sessione dedicata ha invece
+ * lifecycle proprio: revocata da `lib/tvPlayer/session.ts` non appena
+ * la riproduzione finisce, qualunque sia la causa.
  */
 export async function tvPlayerRoutes(app: FastifyInstance) {
   app.post("/api/tv/play", { preHandler: requireAuth }, async (req, reply) => {
@@ -43,18 +51,21 @@ export async function tvPlayerRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "invalid_body", details: body.error.flatten() });
     }
     const { itemId, itemType } = body.data;
-    const token = req.headers.authorization?.slice("Bearer ".length);
-    if (!token) return reply.code(401).send({ error: "unauthorized" });
+    const userId = req.auth!.user.id;
 
+    let internal: ReturnType<typeof createSession> | null = null;
     try {
       const item = itemType === "movie" ? await getMovie(itemId) : await getEpisode(itemId);
       if (!item) return reply.code(404).send({ error: "not_found" });
 
-      const progress = getProgress(req.auth!.user.id, itemId);
+      const progress = getProgress(userId, itemId);
       const resumeSeconds =
         progress && !progress.completed ? progress.position_ticks / TICKS_PER_SECOND : 0;
 
-      const streamParams = new URLSearchParams({ token });
+      const deviceId = upsertDevice("Riproduzione TV", "tv", userId);
+      internal = createSession(userId, "local", deviceId);
+
+      const streamParams = new URLSearchParams({ token: internal.token });
       if (item.mediaSourceId) streamParams.set("mediaSourceId", item.mediaSourceId);
       const streamUrl = `http://127.0.0.1:${config.port}/api/media/${encodeURIComponent(itemId)}/stream?${streamParams}`;
 
@@ -65,10 +76,12 @@ export async function tvPlayerRoutes(app: FastifyInstance) {
         streamUrl,
         resumeSeconds,
         durationSeconds: item.runtimeTicks ? item.runtimeTicks / TICKS_PER_SECOND : null,
-        startedByUserId: req.auth!.user.id,
+        startedByUserId: userId,
+        internalSessionId: internal.session.id,
       });
       return { session: status };
     } catch (err) {
+      if (internal) revokeSession(internal.session.id); // start() fallito: non lasciare una sessione orfana
       if (handleServiceError(err, "jellyfin", reply)) return;
       if (err instanceof TvPlayerError) {
         return reply.code(503).send({ error: "service_unavailable", service: "mpv", message: err.message });

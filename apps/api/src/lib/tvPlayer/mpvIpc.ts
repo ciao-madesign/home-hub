@@ -81,16 +81,37 @@ export class MpvIpcClient extends EventEmitter {
     }
   }
 
-  command(args: unknown[]): Promise<unknown> {
+  /**
+   * Timeout per comando: se mpv smette di rispondere (o il socket si
+   * chiude mentre un comando è in volo, es. una `stop()` che corre in
+   * parallelo a un `/api/tv/control`), la Promise deve comunque
+   * risolversi prima o poi — altrimenti resta appesa per sempre insieme
+   * alla richiesta HTTP che la sta aspettando.
+   */
+  command(args: unknown[], timeoutMs = 5000): Promise<unknown> {
     if (!this.socket) return Promise.reject(new MpvIpcError("Socket IPC non connesso"));
     const requestId = this.nextRequestId++;
     const payload = JSON.stringify({ command: args, request_id: requestId }) + "\n";
 
     return new Promise((resolve, reject) => {
-      this.pending.set(requestId, { resolve, reject });
+      const timeout = setTimeout(() => {
+        if (this.pending.delete(requestId)) reject(new MpvIpcError("Timeout comando mpv"));
+      }, timeoutMs);
+
+      this.pending.set(requestId, {
+        resolve: (data) => {
+          clearTimeout(timeout);
+          resolve(data);
+        },
+        reject: (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        },
+      });
+
       this.socket!.write(payload, (err) => {
-        if (err) {
-          this.pending.delete(requestId);
+        if (err && this.pending.delete(requestId)) {
+          clearTimeout(timeout);
           reject(err);
         }
       });
@@ -112,6 +133,7 @@ export class MpvIpcClient extends EventEmitter {
   close(): void {
     this.socket?.end();
     this.socket = null;
+    for (const pending of this.pending.values()) pending.reject(new MpvIpcError("Socket IPC chiuso"));
     this.pending.clear();
   }
 }

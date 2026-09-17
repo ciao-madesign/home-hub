@@ -59,8 +59,8 @@ export function Remote() {
     const ws = new WebSocket(tvWsUrl());
     wsRef.current = ws;
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      if (msg.type === "status") setSession(msg);
+      const { type, ...status } = JSON.parse(event.data);
+      if (type === "status") setSession(status as TvSessionStatus);
     };
     ws.onclose = () => {
       // La sessione è finita (o non ce n'era una): niente WebSocket da riaprire qui,

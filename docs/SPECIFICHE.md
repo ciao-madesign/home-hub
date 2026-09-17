@@ -457,19 +457,34 @@ poi un telecomando (`/telecomando`), mai il dispositivo che riproduce —
 differenza architetturale chiave rispetto a `VideoPlayer.tsx`, che
 riproduce nel browser di chi guarda. `POST /api/tv/play` avvia mpv
 sull'endpoint `/api/media/:id/stream` già usato dal player nel browser
-(mai reinventare l'integrazione Jellyfin), raggiunto in loopback col
-token dell'utente che avvia la riproduzione. A differenza del browser,
-mpv seleziona nativamente le tracce audio/sottotitoli del file in direct
-play (`track-list`) — non serve il workaround `AudioStreamIndex` usato
-per Chromium (§7). Stato in tempo reale (posizione, pausa, volume,
-tracce) trasmesso ai dispositivi di controllo via WebSocket
-(`GET /api/tv/ws`, stesso protocollo di auth `?token=` di Condivisione
-schermo); il progresso viene salvato periodicamente in
-`playback_progress`, integrandosi con "Continua a guardare" (§7) come
-qualunque altra riproduzione. Un solo slot di riproduzione (una TV):
-avviarne una nuova sostituisce quella corrente, stesso principio di
-Condivisione schermo. Stato solo in memoria, mai nel database — il
-processo mpv non sopravvive comunque a un riavvio dell'Hub API.
+(mai reinventare l'integrazione Jellyfin), raggiunto in loopback con una
+**sessione Hub dedicata creata al volo** (`lib/sessions.ts:createSession`,
+stesso meccanismo del login), mai il token personale dell'utente che ha
+premuto "Riproduci sulla TV" — decisione presa dopo un self-review
+(`/simplify`): il token personale finirebbe in chiaro nell'argv del
+processo mpv (leggibile da chiunque sulla macchina con `ps`/`/proc/<pid>/
+cmdline` per tutta la durata della riproduzione) e la sua scadenza
+seguirebbe la sessione del browser di chi ha avviato la riproduzione, non
+la riproduzione stessa. La sessione dedicata viene invece revocata da
+`lib/tvPlayer/session.ts` non appena la riproduzione finisce, qualunque
+sia la causa (stop esplicito, mpv che crolla, connessione IPC mai
+riuscita — un'unica funzione di cleanup condivisa da tutte e tre le vie
+d'uscita). A differenza del browser, mpv seleziona nativamente le tracce
+audio/sottotitoli del file in direct play (`track-list`) — non serve il
+workaround `AudioStreamIndex` usato per Chromium (§7). Stato in tempo
+reale (posizione, pausa, volume, tracce) trasmesso ai dispositivi di
+controllo via WebSocket (`GET /api/tv/ws`, stesso protocollo di auth
+`?token=` di Condivisione schermo); il progresso viene salvato
+periodicamente in `playback_progress`, integrandosi con "Continua a
+guardare" (§7) come qualunque altra riproduzione. Un solo slot di
+riproduzione (una TV): avviarne una nuova sostituisce quella corrente,
+stesso principio di Condivisione schermo — a differenza degli altri "at
+most one active X" del progetto (screenshare/gaming/downloads), qui il
+claim dello slot attraversa più `await` (avvio processo, connessione
+IPC), quindi `start()`/`stop()` passano da una coda interna che le
+serializza, evitando che due richieste concorrenti si litighino lo
+stesso socket IPC. Stato solo in memoria, mai nel database — il processo
+mpv non sopravvive comunque a un riavvio dell'Hub API.
 
 Verificato per davvero: mpv installato e pilotato in questo ambiente in
 modalità headless (`--vo=null --ao=null`, nessun display) contro un file

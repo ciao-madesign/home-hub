@@ -7,6 +7,7 @@ import {
   type EpisodeSummary,
   type ResumeInfo,
 } from "../api/client";
+import { PlayOnTvButton } from "../components/PlayOnTvButton";
 import { ServiceUnavailable } from "../components/ServiceUnavailable";
 import { VideoPlayer } from "../components/VideoPlayer";
 
@@ -20,17 +21,6 @@ export function EpisodeDetail() {
   const [showNextPrompt, setShowNextPrompt] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [castError, setCastError] = useState<string | null>(null);
-
-  async function playOnTv() {
-    setCastError(null);
-    try {
-      await api.tvPlay(episodeId, "episode");
-      navigate("/telecomando");
-    } catch {
-      setCastError("Impossibile avviare la riproduzione sulla TV.");
-    }
-  }
 
   useEffect(() => {
     setShowNextPrompt(false);
@@ -74,23 +64,11 @@ export function EpisodeDetail() {
           {episode.overview}
         </p>
       )}
-      <button
-        onClick={playOnTv}
-        style={{
-          marginBottom: 16,
-          padding: "8px 16px",
-          borderRadius: "var(--radius-sm)",
-          border: "1px solid var(--border)",
-          background: "transparent",
-          color: "var(--text)",
-          fontWeight: 600,
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        Riproduci sulla TV
-      </button>
-      {castError && <p style={{ fontSize: 13, color: "var(--status-problem)", marginBottom: 12 }}>{castError}</p>}
+      <PlayOnTvButton
+        itemId={episode.id}
+        itemType="episode"
+        style={{ marginBottom: 16, padding: "8px 16px", fontSize: 13 }}
+      />
 
       <div style={{ position: "relative", maxWidth: 960 }}>
         <VideoPlayer

@@ -219,5 +219,5 @@ export const config = {
   // Argomenti extra passati a mpv (driver video/audio, tipicamente da
   // adattare all'hardware reale) come array JSON — default pensato per
   // un normale utilizzo desktop a schermo intero.
-  tvMpvArgsJson: process.env.HUB_TV_MPV_ARGS_JSON ?? null,
+  tvMpvArgsJson: envOptional("HUB_TV_MPV_ARGS_JSON"),
 };

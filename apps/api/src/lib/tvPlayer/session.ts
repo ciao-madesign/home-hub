@@ -4,6 +4,7 @@ import path from "node:path";
 import type { WebSocket } from "ws";
 import { config } from "../../config.js";
 import { saveProgress, type ItemType } from "../playback.js";
+import { revokeSession } from "../sessions.js";
 import { MpvIpcClient } from "./mpvIpc.js";
 
 export class TvPlayerError extends Error {}
@@ -46,7 +47,7 @@ interface MpvTrackListEntry {
 
 /**
  * mpv seleziona le tracce native del contenitore (direct play, §"A
- * differenza del browser..." sopra) — non serve passare da Jellyfin come
+ * differenza del browser..." sotto) — non serve passare da Jellyfin come
  * per VideoPlayer.tsx. La UI ha bisogno di etichette vere (non solo
  * indici), quindi si osserva l'intera `track-list` invece di limitarsi a
  * `aid`/`sid`: mpv la ri-emette ad ogni cambio, "selected" indica quella
@@ -60,6 +61,17 @@ function applyTrackList(status: TvSessionStatus, entries: MpvTrackListEntry[]): 
   status.subtitleTrack = entries.find((t) => t.type === "sub" && t.selected)?.id ?? null;
 }
 
+interface Session {
+  process: ChildProcess;
+  ipc: MpvIpcClient;
+  status: TvSessionStatus;
+  subscribers: Set<WebSocket>;
+  progressInterval: ReturnType<typeof setInterval>;
+  /** Sessione Hub dedicata (mai il token personale del browser che ha avviato la
+   *  riproduzione, vedi start()) — revocata qui alla fine, qualunque sia la causa. */
+  internalSessionId: string;
+}
+
 /**
  * Un solo slot di riproduzione (una TV, il Wyse collegato via HDMI — §
  * "Riproduzione su TV non Smart" in docs/SPECIFICHE.md): avviarne una
@@ -70,15 +82,25 @@ function applyTrackList(status: TvSessionStatus, entries: MpvTrackListEntry[]): 
  * riavvio dell'Hub API comunque (stesso principio di
  * screenshare/session.ts e degli `activeHandles` di Download/Gaming).
  */
-let current:
-  | {
-      process: ChildProcess;
-      ipc: MpvIpcClient;
-      status: TvSessionStatus;
-      subscribers: Set<WebSocket>;
-      progressInterval: ReturnType<typeof setInterval>;
-    }
-  | null = null;
+let current: Session | null = null;
+
+/**
+ * `start()`/`stop()` toccano `current` attraverso più `await` (avvio
+ * processo, connessione IPC): a differenza dei precedenti nel progetto
+ * (screenshare/gaming/downloads, che reclamano il proprio slot in un solo
+ * tick sincrono), qui due chiamate concorrenti potrebbero altrimenti
+ * intrecciarsi e litigarsi lo stesso socket IPC (path fisso, una sola
+ * TV). Questa coda serializza ogni operazione sul slot.
+ */
+let operationQueue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+  const result = operationQueue.then(operation, operation);
+  operationQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
 function socketPath(): string {
   return config.tvMpvSocketPath;
@@ -114,6 +136,16 @@ function persistProgress(status: TvSessionStatus): void {
   );
 }
 
+/** Cleanup comune a ogni via d'uscita di una sessione (stop esplicito, mpv
+ *  che crolla, connessione IPC mai riuscita) — un solo posto che libera
+ *  davvero tutto, invece di doverlo ricordare in ogni call site. */
+function cleanup(session: Session): void {
+  clearInterval(session.progressInterval);
+  persistProgress(session.status);
+  revokeSession(session.internalSessionId);
+  session.ipc.close();
+}
+
 export function getStatus(): TvSessionStatus | null {
   return current?.status ?? null;
 }
@@ -136,6 +168,10 @@ export interface StartOptions {
   resumeSeconds: number;
   durationSeconds: number | null;
   startedByUserId: string;
+  /** Id della sessione Hub dedicata creata dalla route per autenticare la
+   *  richiesta di mpv verso /api/media (mai il token personale dell'utente
+   *  che ha avviato la riproduzione, vedi routes/tvPlayer.ts). */
+  internalSessionId: string;
 }
 
 /**
@@ -146,8 +182,12 @@ export interface StartOptions {
  * tracce audio/sottotitoli nativamente da direct play — non serve chiedere
  * a Jellyfin di remuxare via AudioStreamIndex come per VideoPlayer.tsx.
  */
-export async function start(options: StartOptions): Promise<TvSessionStatus> {
-  await stop();
+export function start(options: StartOptions): Promise<TvSessionStatus> {
+  return enqueue(() => doStart(options));
+}
+
+async function doStart(options: StartOptions): Promise<TvSessionStatus> {
+  if (current) await doStop();
 
   const dir = path.dirname(socketPath());
   mkdirSync(dir, { recursive: true });
@@ -182,35 +222,41 @@ export async function start(options: StartOptions): Promise<TvSessionStatus> {
   };
 
   const ipc = new MpvIpcClient();
-  const subscribers = new Set<WebSocket>();
 
-  const session = {
+  const session: Session = {
     process: proc,
     ipc,
     status,
-    subscribers,
+    subscribers: new Set<WebSocket>(),
+    internalSessionId: options.internalSessionId,
     progressInterval: setInterval(() => persistProgress(session.status), PROGRESS_SAVE_INTERVAL_MS),
   };
   current = session;
 
-  proc.on("exit", () => {
-    if (current !== session) return; // già sostituita da una nuova sessione
-    clearInterval(session.progressInterval);
-    persistProgress(session.status);
+  // Stesso handler per "exit" ed "error": mpv che non parte affatto (comando
+  // assente) o che crolla a riproduzione avviata devono liberare le stesse
+  // risorse (in precedenza "error" non lo faceva, lasciando l'intervallo di
+  // progresso a girare per sempre su una sessione morta).
+  const handleTermination = () => {
+    if (current !== session) return; // già sostituita/fermata altrove
+    cleanup(session);
     session.status.status = "stopped";
     broadcast(session.status, session.subscribers);
-    ipc.close();
+    for (const socket of session.subscribers) socket.close();
     current = null;
-  });
-  proc.on("error", () => {
-    if (current === session) current = null;
-  });
+  };
+  proc.on("exit", handleTermination);
+  proc.on("error", handleTermination);
 
   try {
     await ipc.connect(socketPath());
   } catch (err) {
-    proc.kill("SIGTERM");
+    // current === session ancora qui: cleanup() esplicito invece di
+    // aspettare l'evento "exit" del kill, che arriverebbe più tardi e
+    // lascerebbe nel frattempo l'intervallo di progresso attivo.
+    cleanup(session);
     current = null;
+    proc.kill("SIGTERM");
     throw new TvPlayerError(`Impossibile connettersi a mpv: ${(err as Error).message}`);
   }
 
@@ -238,28 +284,25 @@ export async function start(options: StartOptions): Promise<TvSessionStatus> {
   return status;
 }
 
-async function requireCurrent(): Promise<NonNullable<typeof current>> {
+function requireCurrent(): Session {
   if (!current) throw new TvPlayerError("Nessuna riproduzione attiva sulla TV");
   return current;
 }
 
 export async function pause(): Promise<void> {
-  const session = await requireCurrent();
-  await session.ipc.setProperty("pause", true);
+  await requireCurrent().ipc.setProperty("pause", true);
 }
 
 export async function resume(): Promise<void> {
-  const session = await requireCurrent();
-  await session.ipc.setProperty("pause", false);
+  await requireCurrent().ipc.setProperty("pause", false);
 }
 
 export async function seek(seconds: number): Promise<void> {
-  const session = await requireCurrent();
-  await session.ipc.command(["seek", seconds, "absolute"]);
+  await requireCurrent().ipc.command(["seek", seconds, "absolute"]);
 }
 
 export async function setVolume(volume: number): Promise<void> {
-  const session = await requireCurrent();
+  const session = requireCurrent();
   const clamped = Math.max(0, Math.min(100, volume));
   await session.ipc.setProperty("volume", clamped);
   session.status.volume = clamped;
@@ -270,23 +313,23 @@ export async function setVolume(volume: number): Promise<void> {
 // track-list (osservata in start()) non appena la selezione cambia,
 // applyTrackList() sincronizza lo stato — nessuna assegnazione manuale qui.
 export async function setAudioTrack(track: number): Promise<void> {
-  const session = await requireCurrent();
-  await session.ipc.setProperty("aid", track);
+  await requireCurrent().ipc.setProperty("aid", track);
 }
 
 /** `track = null` disattiva i sottotitoli ("sid" a "no" in mpv). */
 export async function setSubtitleTrack(track: number | null): Promise<void> {
-  const session = await requireCurrent();
-  await session.ipc.setProperty("sid", track ?? "no");
+  await requireCurrent().ipc.setProperty("sid", track ?? "no");
 }
 
-export async function stop(): Promise<void> {
+export function stop(): Promise<void> {
+  return enqueue(doStop);
+}
+
+async function doStop(): Promise<void> {
   if (!current) return;
   const session = current;
-  current = null; // impedisce all'handler "exit" di rifare persistProgress/broadcast
-  clearInterval(session.progressInterval);
-  persistProgress(session.status);
+  current = null; // impedisce a handleTermination di rifare cleanup/broadcast
+  cleanup(session);
   for (const socket of session.subscribers) socket.close();
-  session.ipc.close();
   session.process.kill("SIGTERM");
 }
