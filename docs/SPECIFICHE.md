@@ -153,9 +153,43 @@ bisogno. Verificato per davvero con due cartelle come due dischi
 distinti: ROM piazzata manualmente sul secondo disco trovata dalla
 scansione e poi correttamente risolta all'avvio, backup del salvataggio
 creato sul disco con più spazio libero e verificato byte per byte.
-⬜ Non fatto: avvio effettivo di una sessione Sunshine/Moonlight (solo
-Wake-on-LAN + verifica stato — vedi proposte aperte, §3), spegnimento
-remoto sicuro (implementato ma richiede un agente HTTP sul PC remoto non
+**Integrazione reale con l'API di Sunshine (§10)**: chiude la proposta
+aperta — dal solo Wake-on-LAN + probe TCP al vero pairing GameStream
+(`lib/gaming/sunshine/`): PIN + certificato TLS client generato
+dall'Hub (RSA-2048/SHA-256 self-signed, `node-forge` — vedi
+`docs/EXTERNAL_TOOLS.md`), 5 fasi di pairing verificate leggendo il
+sorgente reale di Sunshine (`nvhttp.cpp`) e dei client Moonlight
+ufficiali, non documentazione di terze parti. Una volta accoppiata, una
+macchina remota online con un'app Sunshine associata al gioco
+(`games.sunshine_app_id`, scoperta via `GET /applist`) fa avviare/
+fermare DAVVERO l'app da `POST /api/games/:id/launch`/`/stop` — non
+solo risveglio. L'Hub resta deliberatamente fuori dal ruolo di client
+Moonlight/streaming: lancia l'app ma non apre mai la sessione RTSP
+video/audio (si scarta da sola lato host dopo 10s se nessuno la
+consuma, verificato nel sorgente — nessuna pulizia necessaria).
+Certificato client persistito su disco (mai nel DB), stesso principio
+già seguito per la chiave privata del server VPN; il certificato
+dell'host viene invece pinnato nel DB dopo il pairing riuscito e non è
+mai esposto in una DTO.
+
+Verificato per davvero: le 5 fasi del pairing contro uno stub HTTP/
+HTTPS che reimplementa esattamente la logica server-side di Sunshine
+(non risposte pre-cucite) — pairing riuscito con PIN corretto
+(certificato host ricevuto, conferma mTLS in fase 5 con lo stesso
+certificato registrato), PIN errato rilevato correttamente lato client
+senza mai completare un falso pairing. API post-pairing (elenco app,
+avvio, arresto, stato) verificata contro un secondo stub fedele alle
+risposte XML reali documentate nel sorgente Sunshine: parametri di
+lancio corretti (`rikey` a 16 byte, `sops=0` per non toccare la
+risoluzione dell'host, `corever=1` per evitare il rifiuto quando la
+cifratura RTSP è obbligatoria), rifiuto corretto di un secondo lancio a
+host occupato, stato coerente dopo l'arresto. UI di pairing (PIN
+mostrato, polling di stato, selezione app) verificata in Chromium reale
+(Playwright) contro il backend vero.
+
+⬜ Non fatto: pairing/lancio verificati contro un'host Sunshine reale
+(nessuno raggiungibile in questo ambiente sandbox), spegnimento remoto
+sicuro (implementato ma richiede un agente HTTP sul PC remoto non
 ancora specificato/fornito), controller Bluetooth/USB (nessuna
 integrazione: è un livello OS/browser, non un backend da orchestrare),
 supporto formati emulatore oltre alla mappa piattaforma→emulatore di
@@ -764,26 +798,19 @@ con l'utente il 2026-09-17.
 
 ### Risolvibili senza hardware reale — priorità
 
-1. **Integrazione reale con l'API di Sunshine**: l'avvio di una sessione
-   di gioco su PC remoto oggi si ferma a Wake-on-LAN + verifica stato.
-   Avviare davvero un'app/gioco via Sunshine richiede implementare il
-   suo flusso di pairing (PIN + certificati TLS client) — scope non
-   banale, ma costruibile e verificabile qui contro uno stub HTTP fedele
-   al protocollo Sunshine (stesso approccio già usato per Jellyfin/
-   Immich/DuckDNS), senza bisogno del PC remoto reale.
-2. **Estensione "dispositivo di riproduzione" per più TV**: la
+1. **Estensione "dispositivo di riproduzione" per più TV**: la
    Riproduzione su TV (Extra, sopra) oggi assume un solo output (il Wyse
    via HDMI). Estendere a più dispositivi (es. una seconda Smart TV via
    browser/client) è puro lavoro di astrazione software — probabile
    estensione della stessa `machines` già usata dal Gaming — non
    affrontata finché serve davvero un secondo dispositivo.
-3. **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
+2. **Provisioning automatico account Jellyfin/Immich per utente Hub**: se
    in futuro serve stato nativo per-utente lato Jellyfin/Immich (oltre al
    "Continua a guardare" già gestito lato Hub), andrebbe creato un
    account Jellyfin/Immich per ogni utente Hub alla creazione del
    profilo. Verificabile contro gli stessi stub HTTP già usati per le
    altre integrazioni Jellyfin/Immich.
-4. **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
+3. **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
    dell'utente, non richiesta da SPEC_V1/V2. Idea: un "AI Orchestrator"
    come ulteriore livello dell'Hub API che riceve richieste in linguaggio
    naturale, le instrada a uno o più modelli locali (es. un modello
@@ -847,10 +874,10 @@ con l'utente il 2026-09-17.
 
 (**Selezione automatica della macchina di esecuzione**, **priorità
 risorse dinamica per download/backup**, **libreria virtuale multi-disco
-per Games/Downloads**, **Riproduzione su TV non Smart** e **rimozione di
-Musica dallo scope**: proposte/decisioni chiuse, vedi rispettivamente
-Fase 7, Fase 6/10, Fase 6/7, "Extra — Riproduzione su TV non Smart" e
-Fase 5, sopra.)
+per Games/Downloads**, **integrazione reale con l'API di Sunshine**,
+**Riproduzione su TV non Smart** e **rimozione di Musica dallo scope**:
+proposte/decisioni chiuse, vedi rispettivamente Fase 7 (due volte), Fase
+6/10, Fase 6/7, "Extra — Riproduzione su TV non Smart" e Fase 5, sopra.)
 
 ## 4. Limitazioni note (da verificare prima del deploy reale)
 

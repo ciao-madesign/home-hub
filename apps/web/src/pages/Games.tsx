@@ -6,6 +6,7 @@ import {
   type GameItem,
   type MachineItem,
   type ScanCandidate,
+  type SunshineApp,
 } from "../api/client";
 import {
   Modal,
@@ -142,6 +143,8 @@ function GameDetailModal({
   const [detail, setDetail] = useState<GameDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [launchInfo, setLaunchInfo] = useState<string | null>(null);
+  const [sunshineApps, setSunshineApps] = useState<SunshineApp[] | null>(null);
   const coverInput = useRef<HTMLInputElement>(null);
 
   function refresh() {
@@ -149,6 +152,17 @@ function GameDetailModal({
   }
 
   useEffect(refresh, [gameId]);
+
+  const executionMachine = machines.find((m) => m.id === (detail?.game.executionMachineId ?? "local"));
+  const canPickSunshineApp = executionMachine?.kind === "remote" && executionMachine.sunshinePaired;
+
+  useEffect(() => {
+    if (!canPickSunshineApp || !executionMachine) {
+      setSunshineApps(null);
+      return;
+    }
+    api.listSunshineApps(executionMachine.id).then((res) => setSunshineApps(res.apps)).catch(() => setSunshineApps([]));
+  }, [canPickSunshineApp, executionMachine]);
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -159,6 +173,32 @@ function GameDetailModal({
       onChanged();
     } catch {
       setError("Operazione non riuscita.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function launch() {
+    setBusy(true);
+    setError(null);
+    setLaunchInfo(null);
+    try {
+      const res = await api.launchGame(gameId);
+      if (res.mode === "remote") {
+        setLaunchInfo(
+          res.launched
+            ? "Avviato davvero sull'host Sunshine."
+            : res.machineOnline
+              ? "La macchina è online ma non è accoppiata con Sunshine o non è stata scelta un'app: nessun avvio reale."
+              : res.wolSent
+                ? "Macchina offline: Wake-on-LAN inviato, riprova tra poco."
+                : null,
+        );
+      }
+      refresh();
+      onChanged();
+    } catch {
+      setError("Avvio non riuscito.");
     } finally {
       setBusy(false);
     }
@@ -224,11 +264,41 @@ function GameDetailModal({
         </select>
       </div>
 
+      {canPickSunshineApp && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 12, color: "var(--text-faint)", display: "block", marginBottom: 4 }}>
+            App su Sunshine
+          </label>
+          <select
+            value={game.sunshineAppId ?? ""}
+            onChange={(e) => run(() => api.updateGame(game.id, { sunshineAppId: e.target.value || null }))}
+            style={modalInputStyle}
+          >
+            <option value="">— nessuna (solo risveglio/verifica) —</option>
+            {sunshineApps?.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {error && <p style={{ color: "var(--status-problem)", fontSize: 12, marginBottom: 10 }}>{error}</p>}
+      {launchInfo && <p style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 10 }}>{launchInfo}</p>}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-        {!running ? (
-          <button disabled={busy} onClick={() => run(() => api.launchGame(game.id))} style={modalPrimaryButtonStyle}>
+        {canPickSunshineApp ? (
+          <>
+            <button disabled={busy} onClick={launch} style={modalPrimaryButtonStyle}>
+              Avvia
+            </button>
+            <button disabled={busy} onClick={() => run(() => api.stopGame(game.id))} style={modalSecondaryButtonStyle}>
+              Ferma
+            </button>
+          </>
+        ) : !running ? (
+          <button disabled={busy} onClick={launch} style={modalPrimaryButtonStyle}>
             Avvia
           </button>
         ) : (
@@ -362,6 +432,7 @@ function AddMachineModal({ onClose, onCreated }: { onClose: () => void; onCreate
   const [macAddress, setMacAddress] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("");
+  const [sunshinePort, setSunshinePort] = useState("");
 
   async function submit() {
     if (!name.trim()) return;
@@ -370,6 +441,7 @@ function AddMachineModal({ onClose, onCreated }: { onClose: () => void; onCreate
       macAddress: macAddress.trim() || null,
       host: host.trim() || null,
       port: port.trim() ? Number(port.trim()) : null,
+      sunshinePort: sunshinePort.trim() ? Number(sunshinePort.trim()) : null,
     });
     onCreated();
   }
@@ -381,12 +453,87 @@ function AddMachineModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <input value={macAddress} onChange={(e) => setMacAddress(e.target.value)} placeholder="MAC address (Wake-on-LAN)" style={modalInputStyle} />
         <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="IP / hostname" style={modalInputStyle} />
         <input value={port} onChange={(e) => setPort(e.target.value)} placeholder="Porta per il probe di stato" style={modalInputStyle} />
+        <input
+          value={sunshinePort}
+          onChange={(e) => setSunshinePort(e.target.value)}
+          placeholder="Porta base Sunshine (opzionale, default 47989)"
+          style={modalInputStyle}
+        />
       </div>
       <div style={modalButtonRowStyle}>
         <button onClick={onClose} style={modalSecondaryButtonStyle}>Annulla</button>
         <button onClick={submit} disabled={!name.trim()} style={modalPrimaryButtonStyle}>Aggiungi</button>
       </div>
     </Modal>
+  );
+}
+
+/** Pairing Sunshine (§10): PIN mostrato qui, ma va digitato nella Web UI di Sunshine sulla macchina remota (porta 47990), mai in questo Hub. */
+function SunshinePairing({ machine, onPaired }: { machine: MachineItem; onPaired: () => void }) {
+  const [pin, setPin] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "waiting_for_pin" | "verifying" | "wrong_pin" | "failed">("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === "idle" || status === "wrong_pin" || status === "failed") return;
+    const interval = setInterval(async () => {
+      const res = await api.getSunshinePairStatus(machine.id).catch(() => null);
+      if (!res) return;
+      if (res.status === "paired") {
+        setStatus("idle");
+        setPin(null);
+        onPaired();
+      } else {
+        setStatus(res.status);
+        setErrorMessage(res.errorMessage);
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [status, machine.id, onPaired]);
+
+  async function startPairing() {
+    setErrorMessage(null);
+    const res = await api.pairSunshine(machine.id);
+    setPin(res.pin);
+    setStatus("waiting_for_pin");
+  }
+
+  if (machine.sunshinePaired) {
+    return <span style={{ fontSize: 12, color: "var(--status-normal)" }}>Accoppiata con Sunshine</span>;
+  }
+
+  if (pin && (status === "waiting_for_pin" || status === "verifying")) {
+    return (
+      <p style={{ fontSize: 12, margin: 0 }}>
+        Digita <strong style={{ fontSize: 15, letterSpacing: 2 }}>{pin}</strong> nella Web UI di Sunshine su questa
+        macchina (porta 47990) — {status === "waiting_for_pin" ? "in attesa…" : "verifica in corso…"}
+      </p>
+    );
+  }
+
+  if (status === "wrong_pin" || status === "failed") {
+    return (
+      <div style={{ fontSize: 12 }}>
+        <p style={{ color: "var(--status-problem)", margin: "0 0 4px" }}>
+          {status === "wrong_pin" ? "PIN errato." : errorMessage ?? "Pairing non riuscito."}
+        </p>
+        <button
+          onClick={() => {
+            setPin(null);
+            setStatus("idle");
+          }}
+          style={{ ...toolbarButtonStyle, padding: "6px 12px" }}
+        >
+          Riprova
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={startPairing} style={{ ...toolbarButtonStyle, padding: "6px 12px" }}>
+      Accoppia con Sunshine
+    </button>
   );
 }
 
@@ -443,6 +590,7 @@ function MachineRow({ machine, onChanged }: { machine: MachineItem; onChanged: (
           {online === null ? "verifica…" : online ? "online" : "offline"}
         </p>
       </div>
+      {machine.kind === "remote" && <SunshinePairing machine={machine} onPaired={onChanged} />}
       {machine.kind === "remote" && (
         <>
           <button

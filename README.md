@@ -82,15 +82,22 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
 - **Gaming** (§10): catalogo (titolo, piattaforma, copertina), importazione
   da cartelle monitorate con conferma, esecuzione locale di emulatori
   retro (avvio/stop di processo), gestione macchine (locale + PC remoti),
-  Wake-on-LAN (pacchetto magico verificato byte per byte), probe di stato
-  online/offline, backup centralizzato dei salvataggi. **Non
-  implementato**: avvio effettivo di sessioni Sunshine/Moonlight (solo
-  risveglio + verifica stato), controller Bluetooth/USB. **Questione
-  architetturale aperta**: gli emulatori vengono lanciati come processo
-  figlio dell'Hub API — se l'Hub gira in Docker (come nel compose fornito)
-  serve decidere se farli girare sull'host o tramite un agente locale
-  dedicato, dato che serve accesso al display fisico. Vedi
-  `docs/SPECIFICHE.md` §3.
+  selezione automatica della macchina di esecuzione, Wake-on-LAN
+  (pacchetto magico verificato byte per byte), probe di stato online/
+  offline, backup centralizzato dei salvataggi, libreria multi-disco
+  (ROM/copertine/salvataggi distribuiti sul disco dati con più spazio
+  libero). **Integrazione reale con Sunshine**: pairing GameStream vero
+  (PIN + certificato TLS client, protocollo riprodotto leggendo il
+  sorgente reale di Sunshine) — una macchina accoppiata con un'app
+  Sunshine associata al gioco avvia/ferma DAVVERO quell'app da remoto,
+  non solo risveglio. L'Hub non diventa un client di streaming
+  Moonlight: lancia l'app, non apre la sessione video/audio (quella
+  resta compito di un client Moonlight reale sul dispositivo di chi
+  gioca — Fase Remote Gaming V2). **Non implementato**: controller
+  Bluetooth/USB (livello OS/browser, non un backend da orchestrare).
+  Gli emulatori girano come processo figlio dell'Hub API, che per
+  questo gira sull'host (systemd) e non in Docker — vedi
+  `docs/SPECIFICHE.md` §2/§3.
 - **Storage e Backup** (§4/§5/§29): pagina dedicata con visibilità dischi
   (capacità, spazio libero, soglia critica, SMART con degrado esplicito
   se `smartctl`/`findmnt` non disponibili) e backup automatico/manuale
@@ -253,12 +260,19 @@ audio/sottotitoli rilevate correttamente, progresso persistito nel DB
 reale) in modalità headless (`--vo=null --ao=null`) contro un file video
 reale — non verificato l'output video/audio su un display fisico
 (nessun display, nemmeno virtuale, in questo ambiente) né il flusso
-completo con un'istanza Jellyfin reale.
+completo con un'istanza Jellyfin reale. Integrazione Sunshine: le 5 fasi
+del pairing e l'API post-pairing (avvio/arresto app, elenco app)
+verificate per davvero contro due stub HTTP/HTTPS fedeli al sorgente
+reale di Sunshine — non contro un'istanza Sunshine reale (nessuna
+raggiungibile in questo ambiente).
 
 Non ancora implementato: standby/wake automatico, port forwarding
-automatico, avvio sessioni Sunshine/Moonlight. Musica
-rimossa dallo scope su richiesta dell'utente. Vedi la roadmap completa e la
-checklist dettagliata in `docs/SPEC_V1.md` §38-39 e `docs/SPECIFICHE.md`.
+automatico, client Moonlight/streaming (Remote Gaming V2 — l'Hub avvia
+l'app su Sunshine ma non trasmette video/audio, serve un client
+Moonlight reale sul dispositivo di chi gioca), controller Bluetooth/USB.
+Musica rimossa dallo scope su richiesta dell'utente. Vedi la roadmap
+completa e la checklist dettagliata in `docs/SPEC_V1.md` §38-39 e
+`docs/SPECIFICHE.md`.
 
 ## Sviluppo locale
 

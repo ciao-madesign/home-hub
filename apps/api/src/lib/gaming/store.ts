@@ -13,6 +13,10 @@ export interface MachineRow {
   port: number | null;
   agent_url: string | null;
   created_at: string;
+  /** Porta base GameStream di Sunshine su questa macchina (NULL = default, vedi config.sunshineDefaultPort). */
+  sunshine_port: number | null;
+  /** Certificato PEM dell'host, pinnato al pairing riuscito — NULL = non ancora accoppiata (§10). */
+  sunshine_server_cert: string | null;
 }
 
 export interface GameRow {
@@ -26,6 +30,8 @@ export interface GameRow {
   execution_machine_id: string | null;
   created_at: string;
   updated_at: string;
+  /** App configurata lato Sunshine (scoperta via GET /applist dopo il pairing) a cui questo gioco corrisponde. */
+  sunshine_app_id: string | null;
 }
 
 export interface SaveBackupRow {
@@ -63,20 +69,28 @@ export function createMachine(
   host: string | null,
   port: number | null,
   agentUrl: string | null,
+  sunshinePort: number | null,
 ): MachineRow {
   const id = randomUUID();
   getDb()
     .prepare(
-      `INSERT INTO machines (id, name, kind, mac_address, host, port, agent_url)
-       VALUES (?, ?, 'remote', ?, ?, ?, ?)`,
+      `INSERT INTO machines (id, name, kind, mac_address, host, port, agent_url, sunshine_port)
+       VALUES (?, ?, 'remote', ?, ?, ?, ?, ?)`,
     )
-    .run(id, name, macAddress, host, port, agentUrl);
+    .run(id, name, macAddress, host, port, agentUrl, sunshinePort);
   return getMachine(id)!;
 }
 
 export function deleteMachine(id: string): void {
   if (id === "local") throw new GamingError("La macchina locale non può essere rimossa", "conflict");
   getDb().prepare(`DELETE FROM machines WHERE id = ?`).run(id);
+}
+
+/** Registra l'esito di un pairing Sunshine riuscito (§10) — il certificato dell'host resta pinnato per ogni chiamata successiva. */
+export function setMachineSunshinePaired(machineId: string, serverCertPem: string): void {
+  getDb()
+    .prepare(`UPDATE machines SET sunshine_server_cert = ? WHERE id = ?`)
+    .run(serverCertPem, machineId);
 }
 
 // --- Games ---------------------------------------------------------------
@@ -161,6 +175,9 @@ export interface MachineDto {
   host: string | null;
   port: number | null;
   hasAgent: boolean;
+  sunshinePort: number | null;
+  /** Mai il certificato/la chiave vera e propria in una DTO (§2) — solo se il pairing è avvenuto. */
+  sunshinePaired: boolean;
 }
 
 export function toMachineDto(row: MachineRow): MachineDto {
@@ -172,6 +189,8 @@ export function toMachineDto(row: MachineRow): MachineDto {
     host: row.host,
     port: row.port,
     hasAgent: row.agent_url !== null,
+    sunshinePort: row.sunshine_port,
+    sunshinePaired: row.sunshine_server_cert !== null,
   };
 }
 
@@ -183,6 +202,7 @@ export interface GameDto {
   status: GameStatus;
   executionMachineId: string | null;
   hasSavePath: boolean;
+  sunshineAppId: string | null;
 }
 
 export function toGameDto(row: GameRow): GameDto {
@@ -194,6 +214,7 @@ export function toGameDto(row: GameRow): GameDto {
     status: row.status,
     executionMachineId: row.execution_machine_id,
     hasSavePath: row.save_path !== null,
+    sunshineAppId: row.sunshine_app_id,
   };
 }
 

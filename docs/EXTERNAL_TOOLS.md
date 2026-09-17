@@ -189,6 +189,63 @@ per l'Home Entertainment Hub, in aggiunta a Jellyfin/Immich (vedi
   categoria di limitazione già documentata per la cattura schermo di
   Condivisione schermo).
 
+## digitalbazaar/forge — DECISIONE: INTEGRATO
+
+- Genera e legge il certificato X.509 self-signed dell'identità client
+  dell'Hub per l'integrazione reale con Sunshine (§10, `lib/gaming/
+  sunshine/`, proposta aperta chiusa — vedi docs/SPECIFICHE.md): Node
+  core (`node:crypto`) ha solo un parser di certificati in sola lettura
+  (`X509Certificate`), nessun modo di generarne/firmarne uno — `node-
+  forge` è l'unica libreria matura per farlo senza compilazione nativa.
+  Usata anche per leggere i byte grezzi della firma ASN.1 di un
+  certificato (`cert.signature`), campo richiesto dal protocollo di
+  pairing GameStream/Sunshine (le fasi 2/3 la includono dentro un hash)
+  e non esposto in altro modo da `node:crypto`.
+- Preferita a chiamare `openssl` come processo esterno (come già fatto
+  per SMART/Wi-Fi): qui serve manipolare byte grezzi del certificato
+  appena generato all'interno dello stesso processo (per il protocollo
+  di pairing), non solo eseguire un comando e leggerne l'output — una
+  libreria in-process è il fit naturale. Pura TypeScript/JavaScript,
+  nessuna compilazione nativa — stesso principio già seguito per
+  `werift`/WebTorrent/`node:sqlite`.
+- Verificato per davvero in questo ambiente: certificato generato,
+  firmato e riletto correttamente contro un'istanza `https.Server` reale
+  con verifica mTLS attiva (non solo che il parsing non lanci eccezioni).
+
+## Sunshine (LizardByte/Sunshine) — protocollo di pairing GameStream
+
+- Non una libreria integrata, ma un protocollo di rete reimplementato da
+  zero in `lib/gaming/sunshine/` (§10, proposta aperta chiusa — vedi
+  docs/SPECIFICHE.md): pairing PIN + certificato TLS client a 5 fasi
+  (`getservercert`/`clientchallenge`/`serverchallengeresp`/
+  `clientpairingsecret`/`pairchallenge`), poi avvio/arresto reale di
+  un'app sull'host via la sua API HTTPS (`/launch`, `/cancel`,
+  `/applist`, `/serverinfo`). Verificato leggendo il sorgente reale di
+  Sunshine (`nvhttp.cpp`) e dei client Moonlight ufficiali (moonlight-qt,
+  moonlight-android), non documentazione di terze parti — nessuna
+  libreria Node esistente implementa questo protocollo (verificato:
+  moonlight-common-c non contiene la logica di pairing, è per-client).
+- Deliberatamente **non** un client Moonlight/streaming: l'Hub lancia
+  l'app sull'host ma non apre mai la sessione RTSP video/audio che
+  Sunshine prepara di conseguenza (si scarta da sola lato host dopo 10s
+  se nessuno la consuma, verificato nel sorgente — nessuna pulizia
+  necessaria lato Hub). Chi vuole vedere/giocare apre un client
+  Moonlight reale sul proprio dispositivo — quella resta la Fase Remote
+  Gaming V2 (Moonlight sul Wyse), fuori scope qui.
+- Verificato per davvero in questo ambiente: le 5 fasi del pairing
+  contro uno stub HTTP/HTTPS che reimplementa esattamente la logica
+  server-side di Sunshine (non risposte pre-cucite) — pairing riuscito
+  con PIN corretto (certificato host ricevuto e conferma mTLS in fase 5),
+  PIN errato rilevato correttamente lato client senza mai completare un
+  falso pairing. API post-pairing (`listApps`/`launchApp`/`cancelApp`/
+  `getServerInfo`) verificata contro un secondo stub fedele alle
+  risposte XML reali documentate nel sorgente: parametri di lancio
+  corretti (incluso `rikey` a 16 byte, `sops=0` per non toccare la
+  risoluzione dell'host), rifiuto di un secondo lancio a host occupato,
+  stato coerente dopo l'arresto.
+- **Non verificato**: pairing/lancio contro un'istanza Sunshine reale
+  (nessun host Sunshine reale raggiungibile in questo ambiente sandbox).
+
 ## Sonarr/Sonarr — DECISIONE: STUDIARE COME RIFERIMENTO, NON INTEGRARE
 
 - Utile come riferimento architetturale per: automazione libreria, ricerca,

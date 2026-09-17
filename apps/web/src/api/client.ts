@@ -294,6 +294,7 @@ export interface GameItem {
   status: GameStatus;
   executionMachineId: string | null;
   hasSavePath: boolean;
+  sunshineAppId: string | null;
 }
 
 export interface SaveBackup {
@@ -322,6 +323,19 @@ export interface MachineItem {
   host: string | null;
   port: number | null;
   hasAgent: boolean;
+  sunshinePort: number | null;
+  sunshinePaired: boolean;
+}
+
+export interface SunshinePairStatus {
+  status: "waiting_for_pin" | "verifying" | "paired" | "wrong_pin" | "failed";
+  pin: string;
+  errorMessage: string | null;
+}
+
+export interface SunshineApp {
+  id: string;
+  title: string;
 }
 
 export function gameCoverUrl(gameId: string): string {
@@ -626,6 +640,7 @@ export const api = {
       romPath: string | null;
       savePath: string | null;
       executionMachineId: string | null;
+      sunshineAppId: string | null;
     }>,
   ) =>
     request<{ game: GameItem }>(`/games/${encodeURIComponent(id)}`, {
@@ -641,20 +656,36 @@ export const api = {
     }),
   uploadGameCover,
   launchGame: (id: string) =>
-    request<{ mode: "local" | "remote"; started?: boolean; machineOnline?: boolean; wolSent?: boolean }>(
-      `/games/${encodeURIComponent(id)}/launch`,
-      { method: "POST" },
-    ),
+    request<{
+      mode: "local" | "remote";
+      started?: boolean;
+      machineOnline?: boolean;
+      wolSent?: boolean;
+      launched?: boolean;
+    }>(`/games/${encodeURIComponent(id)}/launch`, { method: "POST" }),
   stopGame: (id: string) => request<{ ok: true }>(`/games/${encodeURIComponent(id)}/stop`, { method: "POST" }),
   backupGameSave: (id: string) =>
     request<{ backup: SaveBackup }>(`/games/${encodeURIComponent(id)}/backup-save`, { method: "POST" }),
 
   listMachines: () => request<{ machines: MachineItem[] }>("/machines"),
-  createMachine: (fields: { name: string; macAddress?: string | null; host?: string | null; port?: number | null; agentUrl?: string | null }) =>
-    request<{ machine: MachineItem }>("/machines", { method: "POST", body: JSON.stringify(fields) }),
+  createMachine: (fields: {
+    name: string;
+    macAddress?: string | null;
+    host?: string | null;
+    port?: number | null;
+    agentUrl?: string | null;
+    sunshinePort?: number | null;
+  }) => request<{ machine: MachineItem }>("/machines", { method: "POST", body: JSON.stringify(fields) }),
   deleteMachine: (id: string) => request<{ ok: true }>(`/machines/${encodeURIComponent(id)}`, { method: "DELETE" }),
   wakeMachine: (id: string) => request<{ ok: true }>(`/machines/${encodeURIComponent(id)}/wake`, { method: "POST" }),
   getMachineStatus: (id: string) => request<{ online: boolean }>(`/machines/${encodeURIComponent(id)}/status`),
+
+  pairSunshine: (machineId: string) =>
+    request<{ pin: string }>(`/machines/${encodeURIComponent(machineId)}/sunshine/pair`, { method: "POST" }),
+  getSunshinePairStatus: (machineId: string) =>
+    request<SunshinePairStatus>(`/machines/${encodeURIComponent(machineId)}/sunshine/pair/status`),
+  listSunshineApps: (machineId: string) =>
+    request<{ apps: SunshineApp[] }>(`/machines/${encodeURIComponent(machineId)}/sunshine/apps`),
 
   listDisks: () => request<{ disks: DiskInfo[] }>("/storage/disks"),
   getBackupStatus: () => request<BackupStatus>("/backup/status"),

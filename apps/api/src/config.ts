@@ -220,4 +220,17 @@ export const config = {
   // adattare all'hardware reale) come array JSON — default pensato per
   // un normale utilizzo desktop a schermo intero.
   tvMpvArgsJson: envOptional("HUB_TV_MPV_ARGS_JSON"),
+
+  // Integrazione reale con Sunshine (§10, proposta aperta chiusa — vedi
+  // docs/SPECIFICHE.md): l'Hub è un client GameStream a tutti gli effetti
+  // (pairing PIN + certificato TLS client, lib/gaming/sunshine/), non solo
+  // Wake-on-LAN. Un'unica identità client per l'intero Hub (stesso
+  // certificato usato per accoppiarsi con più macchine remote, ognuna lo
+  // registra a sé) — persistita su disco, mai nel DB, stesso principio
+  // già seguito per la chiave privata del server VPN (vpnConfigDir sopra).
+  sunshineIdentityPath: env("HUB_SUNSHINE_IDENTITY_PATH", path.join(here, "..", "data", "sunshine-identity.json")),
+  // Porta base GameStream di Sunshine (default upstream): la porta HTTPS
+  // è sempre base-5, per convenzione del protocollo stesso (mai un valore
+  // indipendente) — vedi lib/gaming/sunshine/pairing.ts.
+  sunshineDefaultPort: Number(env("HUB_SUNSHINE_DEFAULT_PORT", "47989")),
 };
