@@ -187,6 +187,23 @@ host occupato, stato coerente dopo l'arresto. UI di pairing (PIN
 mostrato, polling di stato, selezione app) verificata in Chromium reale
 (Playwright) contro il backend vero.
 
+Self-review (`/simplify`, 4 agenti in parallelo) dopo la prima stesura:
+la decisione "quale percorso di avvio/arresto usare" (locale, remoto con
+Sunshine, remoto solo risveglio) è stata estratta da `routes/gaming.ts`
+in `lib/gaming/launch.ts` — era rimasta l'unica logica di questa fase
+scritta direttamente nella route invece che in un modulo `lib/gaming/*`
+dedicato, come già fanno `autoSelect.ts`/`wol.ts`/`machineStatus.ts`; la
+porta HTTPS di Sunshine ("base-5", convenzione fissa del protocollo) e
+la risoluzione porta-configurata-o-default erano reimplementate sia in
+`pairing.ts` sia in `client.ts`, unificate in `transport.ts`; la mappa
+delle sessioni di pairing in memoria non veniva mai ripulita (innocua —
+al più una entry per macchina, mai per tentativo — ma un'orfana restava
+per sempre se la macchina veniva rimossa), ora rimossa esplicitamente
+alla cancellazione della macchina e comunque dopo un breve periodo di
+grazia una volta raggiunto uno stato finale. Ri-verificato per davvero
+dopo il refactor: stesso esito (pairing riuscito/PIN errato/API
+post-pairing) contro gli stessi due stub.
+
 ⬜ Non fatto: pairing/lancio verificati contro un'host Sunshine reale
 (nessuno raggiungibile in questo ambiente sandbox), spegnimento remoto
 sicuro (implementato ma richiede un agente HTTP sul PC remoto non

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import http from "node:http";
 import https from "node:https";
+import { config } from "../../../config.js";
 import { getClientIdentity } from "./identity.js";
 
 export class SunshineError extends Error {}
@@ -14,6 +15,16 @@ export function buildQuery(params: Record<string, string>): string {
     updateState: "1",
     ...params,
   }).toString();
+}
+
+/** Porta base GameStream configurata per la macchina, o il default dell'Hub se non impostata. */
+export function resolveSunshineBasePort(configuredPort: number | null): number {
+  return configuredPort ?? config.sunshineDefaultPort;
+}
+
+/** La porta HTTPS di Sunshine è sempre base-5 — convenzione fissa del protocollo, mai un valore indipendente (unica fonte di verità, usata sia dal pairing sia dall'API post-pairing). */
+export function sunshineHttpsPort(basePort: number): number {
+  return basePort - 5;
 }
 
 function collectBody(res: http.IncomingMessage): Promise<string> {

@@ -21,14 +21,15 @@ import {
   updateGame,
 } from "../lib/gaming/store.js";
 import { scanForNewGames } from "../lib/gaming/scan.js";
-import { isRunning, launchLocal, stopLocal, EmulatorError } from "../lib/gaming/emulator.js";
+import { isRunning, EmulatorError } from "../lib/gaming/emulator.js";
+import { launchGame, stopGame } from "../lib/gaming/launch.js";
 import { probeTcp } from "../lib/gaming/machineStatus.js";
 import { resolveExecutionMachine } from "../lib/gaming/autoSelect.js";
 import { sendWakeOnLan, WolError } from "../lib/gaming/wol.js";
 import { backupSave } from "../lib/gaming/saveBackup.js";
-import { cancelApp, launchApp, listApps } from "../lib/gaming/sunshine/client.js";
-import { beginPairing, defaultSunshinePort, getPairingSession } from "../lib/gaming/sunshine/pairing.js";
-import { SunshineError } from "../lib/gaming/sunshine/transport.js";
+import { listApps } from "../lib/gaming/sunshine/client.js";
+import { beginPairing, getPairingSession, removePairingSession } from "../lib/gaming/sunshine/pairing.js";
+import { resolveSunshineBasePort, SunshineError } from "../lib/gaming/sunshine/transport.js";
 import { assertSafeRelativePath, UnsafePathError } from "../lib/pathSafety.js";
 import { absOnDisk, pickWriteDisk, resolveAcrossDisks } from "../lib/storage/library.js";
 import { requireAuth } from "../plugins/auth.js";
@@ -203,59 +204,7 @@ export async function gamingRoutes(app: FastifyInstance) {
     if (!machine) return reply.code(409).send({ error: "conflict", message: "Macchina di esecuzione non configurata" });
 
     try {
-      if (machine.kind === "local") {
-        if (!game.rom_path) {
-          return reply.code(409).send({ error: "conflict", message: "Nessuna ROM configurata per questo gioco" });
-        }
-        const found = await resolveAcrossDisks("Games", assertSafeRelativePath(game.rom_path));
-        if (!found) return reply.code(409).send({ error: "conflict", message: "ROM non trovata su nessun disco" });
-        launchLocal(id, game.platform, found.abs);
-        return { mode: "local", started: true, machineId: machine.id, machineName: machine.name };
-      }
-
-      // PC remoto (§10 appendice): l'Hub sveglia e verifica lo stato. Se la
-      // macchina è online, accoppiata con Sunshine (pairing PIN + certificato
-      // TLS client, sunshine/) e il gioco ha un'app Sunshine associata,
-      // l'Hub avvia DAVVERO l'app sull'host — chiude la proposta aperta.
-      // Senza pairing/mappatura resta il solo risveglio+verifica di prima.
-      if (!machine.host || !machine.port) {
-        return reply.code(409).send({ error: "conflict", message: "Macchina remota non configurata (host/porta mancanti)" });
-      }
-      const online = await probeTcp(machine.host, machine.port);
-      if (online) {
-        if (machine.sunshine_server_cert && game.sunshine_app_id) {
-          await launchApp(machine, game.sunshine_app_id);
-          return {
-            mode: "remote",
-            machineOnline: true,
-            wolSent: false,
-            launched: true,
-            machineId: machine.id,
-            machineName: machine.name,
-          };
-        }
-        return {
-          mode: "remote",
-          machineOnline: true,
-          wolSent: false,
-          launched: false,
-          machineId: machine.id,
-          machineName: machine.name,
-        };
-      }
-
-      if (!machine.mac_address) {
-        return reply.code(409).send({ error: "conflict", message: "MAC address mancante: impossibile inviare Wake-on-LAN" });
-      }
-      await sendWakeOnLan(machine.mac_address);
-      return {
-        mode: "remote",
-        machineOnline: false,
-        wolSent: true,
-        launched: false,
-        machineId: machine.id,
-        machineName: machine.name,
-      };
+      return await launchGame(machine, game);
     } catch (err) {
       if (err instanceof UnsafePathError) return reply.code(400).send({ error: "invalid_path" });
       if (handleGamingError(err, reply)) return;
@@ -268,13 +217,7 @@ export async function gamingRoutes(app: FastifyInstance) {
     const game = getGame(id);
     const machine = game?.execution_machine_id ? getMachine(game.execution_machine_id) : null;
     try {
-      // Un gioco avviato per davvero su Sunshine si ferma fermando l'app
-      // sull'host (§10) — stopLocal riguarda solo l'emulatore locale.
-      if (machine?.kind === "remote" && machine.sunshine_server_cert) {
-        await cancelApp(machine);
-      } else {
-        stopLocal(id);
-      }
+      await stopGame(id, machine);
       return { ok: true };
     } catch (err) {
       if (handleGamingError(err, reply)) return;
@@ -317,6 +260,7 @@ export async function gamingRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     try {
       deleteMachine(id);
+      removePairingSession(id); // evita una sessione di pairing orfana per un machineId che non esiste più
       return { ok: true };
     } catch (err) {
       if (handleGamingError(err, reply)) return;
@@ -332,7 +276,7 @@ export async function gamingRoutes(app: FastifyInstance) {
     if (!machine) return reply.code(404).send({ error: "not_found" });
     if (!machine.host) return reply.code(409).send({ error: "conflict", message: "Macchina remota senza host configurato" });
 
-    const httpPort = defaultSunshinePort(machine.sunshine_port);
+    const httpPort = resolveSunshineBasePort(machine.sunshine_port);
     const { pin } = beginPairing(id, machine.host, httpPort, (serverCertPem) => {
       setMachineSunshinePaired(id, serverCertPem);
     });

@@ -1,5 +1,4 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { config } from "../../../config.js";
 import {
   aesDecryptEcbNoPadding,
   aesEncryptEcbNoPadding,
@@ -10,7 +9,7 @@ import {
   verify256,
 } from "./crypto.js";
 import { getClientIdentity } from "./identity.js";
-import { buildQuery, httpGet, httpsGet, SunshineError } from "./transport.js";
+import { buildQuery, httpGet, httpsGet, sunshineHttpsPort, SunshineError } from "./transport.js";
 import { extractXmlTag } from "./xml.js";
 
 /**
@@ -25,6 +24,12 @@ import { extractXmlTag } from "./xml.js";
 
 const PHASE1_TIMEOUT_MS = 5 * 60 * 1000 + 10_000; // Sunshine tiene la sessione aperta fino a 5 minuti, +margine
 const DEFAULT_TIMEOUT_MS = 8000;
+// Una volta raggiunto uno stato finale (paired/wrong_pin/failed) la
+// sessione non serve più oltre a far leggere l'esito da un ultimo poll
+// del frontend — rimossa dopo una breve finestra invece di restare in
+// memoria per sempre (`machines.sunshine_server_cert` nel DB resta
+// comunque la fonte di verità del pairing riuscito).
+const SESSION_RETENTION_MS = 30_000;
 
 export type PairingStatus = "waiting_for_pin" | "verifying" | "paired" | "wrong_pin" | "failed";
 
@@ -41,8 +46,13 @@ export function getPairingSession(machineId: string): PairingSession | null {
   return sessions.get(machineId) ?? null;
 }
 
-function httpsPort(httpPort: number): number {
-  return httpPort - 5; // convenzione fissa del protocollo (vedi §"Ports" in docs/SPECIFICHE.md)
+/** Da chiamare quando una macchina viene rimossa (routes/gaming.ts) — evita una sessione orfana per un machineId che non esiste più. */
+export function removePairingSession(machineId: string): void {
+  sessions.delete(machineId);
+}
+
+function scheduleSessionCleanup(machineId: string): void {
+  setTimeout(() => sessions.delete(machineId), SESSION_RETENTION_MS).unref();
 }
 
 /**
@@ -70,7 +80,8 @@ export function beginPairing(
     .catch((err) => {
       if (session.status !== "wrong_pin") session.status = "failed";
       session.errorMessage = err instanceof Error ? err.message : String(err);
-    });
+    })
+    .finally(() => scheduleSessionCleanup(machineId));
 
   return { pin };
 }
@@ -155,7 +166,7 @@ async function runPairing(session: PairingSession, host: string, httpPort: numbe
 
   // Fase 5 — pairchallenge su HTTPS: conferma che il certificato client è stato registrato davvero.
   const phase5 = await httpsGet(
-    `https://${host}:${httpsPort(httpPort)}/pair?${buildQuery({ phrase: "pairchallenge" })}`,
+    `https://${host}:${sunshineHttpsPort(httpPort)}/pair?${buildQuery({ phrase: "pairchallenge" })}`,
     { key: identity.privateKeyPem, cert: identity.certPem, ca: serverCertPem },
     DEFAULT_TIMEOUT_MS,
   );
@@ -164,8 +175,4 @@ async function runPairing(session: PairingSession, host: string, httpPort: numbe
   }
 
   return serverCertPem;
-}
-
-export function defaultSunshinePort(configuredPort: number | null): number {
-  return configuredPort ?? config.sunshineDefaultPort;
 }

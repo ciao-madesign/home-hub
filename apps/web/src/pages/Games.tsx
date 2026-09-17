@@ -178,23 +178,20 @@ function GameDetailModal({
     }
   }
 
+  function remoteLaunchMessage(res: Awaited<ReturnType<typeof api.launchGame>>): string | null {
+    if (res.launched) return "Avviato davvero sull'host Sunshine.";
+    if (res.machineOnline) return "La macchina è online ma non è accoppiata con Sunshine o non è stata scelta un'app: nessun avvio reale.";
+    if (res.wolSent) return "Macchina offline: Wake-on-LAN inviato, riprova tra poco.";
+    return null;
+  }
+
   async function launch() {
     setBusy(true);
     setError(null);
     setLaunchInfo(null);
     try {
       const res = await api.launchGame(gameId);
-      if (res.mode === "remote") {
-        setLaunchInfo(
-          res.launched
-            ? "Avviato davvero sull'host Sunshine."
-            : res.machineOnline
-              ? "La macchina è online ma non è accoppiata con Sunshine o non è stata scelta un'app: nessun avvio reale."
-              : res.wolSent
-                ? "Macchina offline: Wake-on-LAN inviato, riprova tra poco."
-                : null,
-        );
-      }
+      setLaunchInfo(res.mode === "remote" ? remoteLaunchMessage(res) : null);
       refresh();
       onChanged();
     } catch {
@@ -288,21 +285,18 @@ function GameDetailModal({
       {launchInfo && <p style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 10 }}>{launchInfo}</p>}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-        {canPickSunshineApp ? (
-          <>
-            <button disabled={busy} onClick={launch} style={modalPrimaryButtonStyle}>
-              Avvia
-            </button>
-            <button disabled={busy} onClick={() => run(() => api.stopGame(game.id))} style={modalSecondaryButtonStyle}>
-              Ferma
-            </button>
-          </>
-        ) : !running ? (
+        {/* Macchina remota accoppiata con Sunshine: lo stato reale non è noto senza polling, quindi restano entrambi i pulsanti; locale: un solo pulsante in base a "running". */}
+        {(!running || canPickSunshineApp) && (
           <button disabled={busy} onClick={launch} style={modalPrimaryButtonStyle}>
             Avvia
           </button>
-        ) : (
-          <button disabled={busy} onClick={() => run(() => api.stopGame(game.id))} style={modalPrimaryButtonStyle}>
+        )}
+        {(running || canPickSunshineApp) && (
+          <button
+            disabled={busy}
+            onClick={() => run(() => api.stopGame(game.id))}
+            style={canPickSunshineApp ? modalSecondaryButtonStyle : modalPrimaryButtonStyle}
+          >
             Ferma
           </button>
         )}
@@ -517,13 +511,7 @@ function SunshinePairing({ machine, onPaired }: { machine: MachineItem; onPaired
         <p style={{ color: "var(--status-problem)", margin: "0 0 4px" }}>
           {status === "wrong_pin" ? "PIN errato." : errorMessage ?? "Pairing non riuscito."}
         </p>
-        <button
-          onClick={() => {
-            setPin(null);
-            setStatus("idle");
-          }}
-          style={{ ...toolbarButtonStyle, padding: "6px 12px" }}
-        >
+        <button onClick={startPairing} style={{ ...toolbarButtonStyle, padding: "6px 12px" }}>
           Riprova
         </button>
       </div>

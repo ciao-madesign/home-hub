@@ -1,8 +1,7 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { config } from "../../../config.js";
 import type { MachineRow } from "../store.js";
 import { getClientIdentity } from "./identity.js";
-import { buildQuery, httpsGet, SunshineError } from "./transport.js";
+import { buildQuery, httpsGet, resolveSunshineBasePort, sunshineHttpsPort, SunshineError } from "./transport.js";
 import { extractApps, extractStatusCode, extractStatusMessage, extractXmlTag, type XmlApp } from "./xml.js";
 
 /**
@@ -18,8 +17,7 @@ import { extractApps, extractStatusCode, extractStatusMessage, extractXmlTag, ty
  */
 
 function httpsPortFor(machine: MachineRow): number {
-  const base = machine.sunshine_port ?? config.sunshineDefaultPort;
-  return base - 5;
+  return sunshineHttpsPort(resolveSunshineBasePort(machine.sunshine_port));
 }
 
 function requirePaired(machine: MachineRow): string {
