@@ -836,7 +836,12 @@ con l'utente il 2026-09-17.
    "Continua a guardare" già gestito lato Hub), andrebbe creato un
    account Jellyfin/Immich per ogni utente Hub alla creazione del
    profilo. Verificabile contro gli stessi stub HTTP già usati per le
-   altre integrazioni Jellyfin/Immich.
+   altre integrazioni Jellyfin/Immich. **Chiesto esplicitamente
+   all'utente se esiste già un uso concreto in mente (2026-09-17):
+   confermato che è ipotetica anche questa** — nessun lavoro fatto,
+   deliberatamente (oggi nessuna funzionalità dell'Hub userebbe davvero
+   quello stato nativo). Da riprendere solo quando emerge uno scopo
+   specifico.
 3. **Livello AI (orchestratore multi-modello), fuori roadmap**: proposta
    dell'utente, non richiesta da SPEC_V1/V2. Idea: un "AI Orchestrator"
    come ulteriore livello dell'Hub API che riceve richieste in linguaggio
