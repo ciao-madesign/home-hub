@@ -752,6 +752,42 @@ dalla spec né decise — da validare con l'utente prima di implementarle:
   modello e pochi strumenti ben definiti prima di valutare
   l'orchestrazione multi-modello, per non introdurre complessità non
   ancora giustificata dalla scala del progetto.
+- **Riproduzione su TV non Smart, controllata da iPhone/browser, fuori
+  roadmap**: proposta dell'utente. Il Wyse è collegato via HDMI a una TV
+  non Smart; un secondo dispositivo (iPhone o altro browser sulla Web
+  App) sceglie il contenuto dalla libreria e lo fa partire *sul Wyse*,
+  restando poi utilizzabile come telecomando (play/pausa, avanti/
+  indietro, seek, volume, audio/sottotitoli, stop, ripresa dal punto
+  precedente) — la riproduzione non avviene mai sul dispositivo che
+  controlla.
+  **Differenza architetturale chiave da tenere presente**: oggi
+  `VideoPlayer.tsx` riproduce nel `<video>` del *browser che apre la Web
+  App* — è il dispositivo che guarda a riprodurre, non il Wyse. Questa
+  proposta richiede invece un player che gira *sul Wyse stesso* (processo
+  separato dal browser), pilotato dall'Hub API — stesso pattern già
+  seguito per gli emulatori Gaming (`child_process.spawn` sull'host, mai
+  in Docker, §2/Fase 9) e coerente con la decisione già presa di tenere
+  l'Hub API sull'host proprio per l'accesso diretto al display del Wyse.
+  Player locale candidato: `mpv` con il suo socket JSON IPC (`--input-
+  ipc-server`), che espone comandi/stato in modo scriptabile — l'Hub API
+  farebbe da ponte tra i comandi ricevuti dal dispositivo di controllo e
+  quel socket, senza che il dispositivo di controllo parli mai
+  direttamente col player (stesso principio "mai i backend interni
+  esposti al frontend" di CLAUDE.md).
+  **Riuso**: il canale di comandi/stato in tempo reale può riusare lo
+  stesso meccanismo WebSocket già introdotto per la Condivisione schermo
+  (`@fastify/websocket`, auth via `?token=`) — qui però molto più
+  semplice, nessun WebRTC: solo comandi JSON e stato periodico (posizione,
+  play/pausa). La "ripresa dal punto precedente" può riusare il
+  meccanismo "Continua a guardare" già esistente lato Hub.
+  **Estensione futura menzionata dall'utente** (più TV, es. una seconda
+  Smart TV via browser/client): incoraggia a modellare da subito un
+  concetto di "dispositivo di riproduzione" distinto da "dispositivo di
+  controllo" — probabilmente estendendo la stessa astrazione `machines`
+  già usata dal Gaming (locale/remoto) invece di introdurne una nuova, ma
+  è una decisione di design da prendere quando si passerà
+  all'implementazione, non ancora affrontata qui.
+  Non ancora deciso con l'utente se/quando implementarla.
 
 (**Selezione automatica della macchina di esecuzione** e **priorità
 risorse dinamica per download/backup**: proposte chiuse, vedi Fase 7 e
