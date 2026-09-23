@@ -347,6 +347,13 @@ sudo cp /opt/home-hub/infra/systemd/homehub-shutdown-sudoers /etc/sudoers.d/home
 sudo chmod 440 /etc/sudoers.d/homehub-shutdown
 sudo visudo -c
 
+# Connessione Wi-Fi da Web App (§28): creare/attivare una connessione
+# richiede privilegi admin via polkit, a differenza della sola scansione —
+# stesso principio least privilege dello spegnimento sopra.
+sudo cp /opt/home-hub/infra/systemd/homehub-wifi-sudoers /etc/sudoers.d/homehub-wifi
+sudo chmod 440 /etc/sudoers.d/homehub-wifi
+sudo visudo -c
+
 sudo cp /opt/home-hub/infra/systemd/home-hub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now home-hub-api

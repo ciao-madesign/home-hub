@@ -1,0 +1,17 @@
+# Permesso sudo mirato per la connessione Wi-Fi da Web App (§28).
+#
+# `nmcli device wifi connect` richiede privilegi di amministrazione tramite
+# polkit (crea/attiva un profilo di connessione NetworkManager) — un
+# utente di sistema senza sessione di login attiva come "homehub" non li
+# ha di norma, a differenza della sola lettura/scansione (`device wifi
+# list`), che NetworkManager permette a qualunque utente. Questo file
+# concede UN SOLO sottocomando specifico, senza password, invece di un
+# sudo generico (§26, least privilege) — stesso principio di
+# homehub-shutdown-sudoers e homehub-update-sudoers.
+#
+# Installazione:
+#   sudo cp infra/systemd/homehub-wifi-sudoers /etc/sudoers.d/homehub-wifi
+#   sudo chmod 440 /etc/sudoers.d/homehub-wifi
+#   sudo visudo -c   # verifica sintassi prima di fidarsi del file installato
+
+homehub ALL=(root) NOPASSWD: /usr/bin/nmcli device wifi connect *

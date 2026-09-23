@@ -90,12 +90,19 @@ export async function listWifiNetworks(): Promise<WifiNetwork[]> {
   }
 }
 
+/**
+ * A differenza della scansione/stato (permessi di lettura, concessi a
+ * qualunque utente da NetworkManager), creare/attivare una connessione
+ * richiede privilegi di amministrazione via polkit — "homehub" (utente di
+ * sistema senza sessione di login) non li ha di norma: serve il permesso
+ * sudo mirato di infra/systemd/homehub-wifi-sudoers (vedi README "Deploy").
+ */
 export async function connectWifi(ssid: string, password: string | null): Promise<void> {
-  const args = ["device", "wifi", "connect", ssid];
+  const args = ["-n", config.nmcliPath, "device", "wifi", "connect", ssid];
   if (password) args.push("password", password);
 
   try {
-    await execFileAsync(config.nmcliPath, args);
+    await execFileAsync("sudo", args);
   } catch (err) {
     if (isCommandNotFound(err)) throw new WifiError("Gestione Wi-Fi non disponibile (nmcli assente)");
     throw new WifiError(`Connessione a "${ssid}" fallita: ${(err as Error).message}`);
