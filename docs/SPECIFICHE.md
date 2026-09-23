@@ -6,21 +6,26 @@ fonte di verità per COSA va costruito e non vengono modificate; questo
 file traccia COSA È STATO FATTO, quali decisioni/aggiunte sono state
 prese lungo il percorso, e quali proposte restano aperte.
 
-Ultimo aggiornamento: dopo AdGuard Home, Condivisione schermo (relay
-WebRTC) e Riproduzione su TV non Smart (mpv pilotato dall'Hub API),
-tutte e tre fuori roadmap su richiesta esplicita dell'utente — si
-aggiungono al blocco precedente di 6 funzionalità (priorità di banda
-dinamica §32, ricerca globale su Foto §16, selezione automatica della
-macchina in Gaming §10, libreria virtuale multi-disco per il File
+Ultimo aggiornamento: **primo deploy reale sul Dell Wyse 5070 il
+24/09/2026** (§5 per il resoconto completo) — Ubuntu Server 24.04, Hub
+API su systemd, Web App/Jellyfin/Immich via Docker Compose, storage su
+disco USB esterno, Wi-Fi con IP statico, tutto verificato sopravvivere
+a un riavvio reale. Scoperta rilevante: lo storage interno del Wyse è
+un eMMC da 16GB (non un SSD M.2 256GB come ipotizzato in SPEC_V1) — un
+disco dati esterno è quindi necessario fin dal primo avvio, non solo in
+futuro. Corretti nel percorso: un bug di build (migrazioni SQL non
+copiate in `dist/`) e due bug di permessi (Wi-Fi e spegnimento dalla Web
+App, utente di sistema `homehub` senza privilegi sufficienti). Musica
+resta rimossa dallo scope (deciso in una sessione precedente).
+
+Prima di questo, l'ultimo blocco di lavoro concluso era: AdGuard Home,
+Condivisione schermo (relay WebRTC) e Riproduzione su TV non Smart (mpv
+pilotato dall'Hub API), tutte e tre fuori roadmap su richiesta esplicita
+dell'utente, più un blocco precedente di 6 funzionalità (priorità di
+banda dinamica §32, ricerca globale su Foto §16, selezione automatica
+della macchina in Gaming §10, libreria virtuale multi-disco per il File
 Manager §4, aggiornamenti Hub dalla Web App §33, tunnel di fallback
-gratuito Cloudflare §23) che chiudevano le proposte aperte elencate in
-questo documento. Restano da fare, quando l'utente avrà l'hardware
-pronto: verifica reale del VPN (nessun modulo kernel WireGuard
-disponibile in questo ambiente), port forwarding/tunnel reale (l'ISP
-dell'utente, EOLO, è probabilmente dietro CGNAT, vedi §3 — per questo
-il tunnel Cloudflare è stato costruito subito, senza aspettare
-l'hardware), standby/wake (Fase 10), Fase 11 (test integrali su
-hardware reale).
+gratuito Cloudflare §23). Prossimi passi concreti: vedi §5.
 
 ---
 
@@ -29,16 +34,22 @@ hardware reale).
 Legenda: ✅ fatto e verificato · 🟡 parziale · ⬜ non iniziato
 
 ### Fase 1 — Preparazione hardware
-⬜ Non applicabile a questo lavoro (attività fisica: RAM, SSD, case,
-Wi-Fi, installazione Linux sul Dell Wyse). Nessuna azione possibile da
-remoto.
+✅ Fatta per davvero sul Dell Wyse 5070 reale (24-25/09/2026, sessione
+remota via SSH guidata passo passo — vedi §5 per il resoconto completo).
+Hardware verificato in BIOS prima di installare: Intel Celeron J4105, 8GB
+RAM, Wi-Fi/Bluetooth presente e abilitato. **Storage interno: eMMC da
+16GB (non un SSD M.2 come ipotizzato in SPEC_V1)** — scoperta importante,
+vedi §5.
 
 ### Fase 2 — Base software
-🟡 Struttura directory e volumi persistenti definiti
-(`infra/docker-compose.yml`, `infra/data/`), avvio automatico dei
-container via `restart: unless-stopped`. Non verificato: installazione
-Linux reale, Docker Engine reale sul Wyse, backup della configurazione
-iniziale, sistema di logging dedicato (oltre al logger di Fastify).
+✅ Ubuntu Server 24.04 LTS installato per davvero (USB via Rufus/Etcher,
+UEFI), Docker Engine reale, Node.js 22, repository clonato in
+`/opt/home-hub`. Struttura directory e volumi persistenti
+(`infra/docker-compose.yml`, `infra/data/`) verificati funzionanti,
+avvio automatico dei container via `restart: unless-stopped` confermato
+anche dopo un riavvio reale della macchina. Non ancora fatto: backup
+della configurazione iniziale, sistema di logging dedicato (oltre al
+logger di Fastify).
 
 ### Fase 3 — Hub Core
 ✅ Repository, API centrale (Fastify), database SQLite (`node:sqlite`),
@@ -1001,3 +1012,111 @@ proposte/decisioni chiuse, vedi rispettivamente Fase 7 (due volte), Fase
   backend fittizio; nessun account/tunnel Cloudflare reale disponibile
   in questo ambiente per verificare `cloudflared` stesso o il percorso
   end-to-end da Internet.
+
+---
+
+## 5. Log deploy su hardware reale (Dell Wyse 5070) — 24/09/2026
+
+Prima sessione di deploy reale, condotta da remoto via SSH con l'utente
+che eseguiva i comandi sul Wyse fisico e riportava gli output. Percorso
+completo: download/preparazione USB → boot e verifica hardware in BIOS
+→ installazione Ubuntu Server 24.04 LTS → Docker/Node.js/repo → primo
+avvio di Hub API + Web App/Jellyfin/Immich → Wi-Fi e IP statico →
+verifica di persistenza dopo un riavvio reale → spegnimento sicuro.
+
+### Scoperte impreviste e correzioni
+
+- **Storage interno reale: eMMC 16GB, non un SSD M.2 256GB.** Ipotesi
+  della spec originale rivelata sbagliata all'accensione (controllato
+  in BIOS/`lsblk` prima di installare, come da procedura). Cambia
+  l'architettura di fatto: il disco interno può ospitare solo il sistema
+  operativo + Docker, **mai** dati (Film/Serie/Foto/Giochi/Download) —
+  serve un disco esterno fin dal primo avvio, non solo "quando i dati
+  crescono" come ipotizzato in origine. Vedi anche la nota sotto sulla
+  saturazione dell'eMMC.
+- **Bug reale di build**: `tsc` non copiava i file `.sql` delle
+  migrazioni in `dist/` (mai emerso prima perché `npm run dev` legge
+  sempre da `src/`) — l'avvio in produzione (`npm run build && npm
+  start`, quello usato dal servizio systemd) non era mai stato eseguito
+  per davvero fino a questo deploy. Corretto in
+  `apps/api/package.json` (`build` ora copia anche le migrazioni).
+- **eMMC saturata dalle immagini Docker** (Jellyfin/Immich/Postgres/
+  Redis, diversi GB) più, in un secondo momento, da un **ambiente
+  desktop completo installato per errore** (GNOME, Firefox, snap-store —
+  probabile selezione sbagliata nello step "applicazioni" dell'installer
+  Ubuntu Server, mai confermata con certezza). Risolto: rimossi i
+  pacchetti desktop via `apt purge`/`autoremove`; disco USB da 120GB
+  riformattato in ext4 (era NTFS, poco adatto a operazioni POSIX come le
+  copie atomiche del backup) e montato in modo permanente
+  (`/etc/fstab`, `UUID=...`, opzione `nofail`) su `/mnt/data`; sia
+  `infra/data` (collegamento simbolico) sia lo storage interno di Docker
+  (`/etc/docker/daemon.json`, `data-root`) spostati lì. **Ordine di
+  montaggio al boot**: aggiunta una dipendenza esplicita
+  (`RequiresMountsFor=/mnt/data`, drop-in systemd su `docker.service` e
+  `home-hub-api.service`, non nel file di unit versionato perché
+  specifico di questo deploy) per evitare che Docker/Hub API partano
+  prima che il disco USB sia montato e ricreino le cartelle dati
+  sull'eMMC — verificato con un riavvio reale della macchina dopo il
+  fix.
+- **Due bug reali di permessi, stesso pattern**: sia la connessione
+  Wi-Fi (`connectWifi` in `lib/network/wifi.ts`) sia lo spegnimento da
+  Web App fallivano perché l'utente di sistema `homehub` (senza sessione
+  di login, §26 least privilege) non ha i permessi che NetworkManager/
+  systemd richiedono per queste operazioni — a differenza della sola
+  scansione Wi-Fi, che funziona per qualunque utente. Il Wi-Fi era un
+  bug di codice reale (mai passava da `sudo`), corretto con un permesso
+  sudo mirato dedicato (`infra/systemd/homehub-wifi-sudoers`, stesso
+  principio di `homehub-shutdown-sudoers`). Lo spegnimento aveva invece
+  già il codice giusto: il file sudoers esisteva nel repository ma non
+  era mai stato installato sul Wyse durante questo deploy — promemoria
+  operativo, non un bug.
+- **`git pull` come root rifiutato** dopo aver reso `/opt/home-hub` di
+  proprietà dell'utente di sistema `homehub` ("dubious ownership",
+  protezione recente di Git) — richiesto `sudo git config --global --add
+  safe.directory /opt/home-hub`.
+- Rimosso un riferimento residuo a `Media/Music` nel bind mount di
+  Jellyfin in `infra/docker-compose.yml`, dimenticato quando Musica è
+  stata tolta dallo scope del progetto in una sessione precedente.
+
+### Cosa funziona, verificato sul Wyse reale
+
+Hub API su systemd (riavvio automatico, sopravvive al reboot), Web App/
+Jellyfin/Immich via Docker Compose, storage su disco USB esterno
+(120GB ext4), Wi-Fi con IP statico (si riconnette da solo al boot,
+verificato con un riavvio reale), spegnimento sicuro da Web App,
+wizard di primo avvio completato con un utente admin reale.
+
+### Prossimi passi (prossima sessione)
+
+1. **Jellyfin**: creare l'API key (Dashboard → API Keys) e configurarla
+   in `apps/api/.env` (`HUB_JELLYFIN_API_KEY`, `HUB_JELLYFIN_BASE_URL`);
+   copiare/collegare film e serie reali sotto `infra/data/Media/` e
+   verificare libreria/riproduzione dalla Web App.
+2. **Immich**: creare l'account admin, generare l'API key (Account
+   Settings → API Keys), configurarla in `apps/api/.env`
+   (`HUB_IMMICH_API_KEY`, `HUB_IMMICH_BASE_URL`); caricare qualche foto
+   di prova.
+3. **Backup**: impostare `HUB_BACKUP_ROOT` (serve un disco/partizione
+   dedicato — valutare se il disco USB da 120GB o uno nuovo, dato che
+   ora ospita già i dati principali) e verificare backup manuale +
+   ripristino per davvero.
+4. **SMART**: `sudo apt install smartmontools` e verificare che l'Hub
+   API (utente `homehub`) riesca a leggere lo stato dei dischi.
+5. **yt-dlp**: `pip install yt-dlp` (o `pip install --user`, attenzione
+   al PATH di systemd — vedi commento in `apps/api/.env.example`) per
+   attivare il Download Manager da URL.
+6. **Multi-disco reale**: quando arriva un secondo disco dati (la spec
+   parlava di un disco da 500GB, quello collegato oggi è da 120GB),
+   verificare per la prima volta la scelta "disco con più spazio
+   libero" (`lib/storage/library.ts`) con capacità realmente diverse.
+7. **Test da TV/dispositivo reale**: navigazione D-pad, sezioni Film/
+   Serie/Foto/File/Download, controller USB/Bluetooth per il Gaming
+   (SPEC_V1 Fase 11).
+8. **Verifica watchdog Docker reale** (`lib/serviceWatchdog.ts`): finora
+   verificato solo contro comandi `docker` fittizi (vedi §4) — ora che
+   Docker reale gira sul Wyse, confermare che il riavvio automatico di
+   Jellyfin/Immich in caso di blocco funzioni davvero (`homehub` è già
+   nel gruppo `docker`, verificato in questa sessione).
+9. Valutare se serve ancora AdGuard Home (fuori roadmap, per ora fermo
+   per il conflitto sulla porta 53 con `systemd-resolved` — vedi §31 in
+   SPEC_V1 e commento in `infra/docker-compose.yml`).

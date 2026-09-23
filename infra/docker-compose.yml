@@ -59,7 +59,6 @@ services:
       - ./data/jellyfin/cache:/cache
       - ./data/Media/Movies:/media/movies:ro
       - ./data/Media/Series:/media/series:ro
-      - ./data/Media/Music:/media/music:ro
     # Hardware video acceleration (§3/§7): richiede /dev/dri sull'host
     # (Intel J4105 del Dell Wyse 5070). Rimuovere se non disponibile.
     devices:

@@ -201,6 +201,15 @@ Implementato, corrispondente alle Fasi 3-5 della roadmap (§38 in
   mai il dispositivo che riproduce. Il progresso si integra con
   "Continua a guardare" come qualunque altra riproduzione.
 
+**Aggiornamento 24/09/2026**: primo deploy reale completato sul Dell
+Wyse 5070 (Ubuntu Server 24.04, Hub API su systemd, Web App/Jellyfin/
+Immich via Docker Compose) — Wi-Fi, spegnimento sicuro e riavvio
+automatico dei servizi ora verificati per davvero, non più solo contro
+stub. Scoperta importante: lo storage interno è un eMMC da 16GB (non un
+SSD M.2 256GB come ipotizzato) — dati e storage Docker vivono su un
+disco USB esterno fin dal primo avvio. Resoconto completo e prossimi
+passi in `docs/SPECIFICHE.md` §5.
+
 **Limitazione nota**: le integrazioni Jellyfin e Immich sono state
 validate contro server di test che replicano le rispettive API REST
 (nessuna istanza reale era raggiungibile nell'ambiente di sviluppo — il
