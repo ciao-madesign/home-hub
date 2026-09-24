@@ -52,10 +52,11 @@ function baseDiskDevice(device: string): string {
 /**
  * Un SSD dietro un bridge USB-SATA (caso comune per il disco dati
  * esterno di questo progetto, vedi docs/SPECIFICHE.md §5) spesso non
- * risponde all'auto-rilevamento di smartctl ma funziona perfettamente
- * con `-d sat` forzato — verificato sul Wyse reale. Si tenta prima
- * l'auto-rilevamento (funziona per dischi collegati direttamente), poi
- * si ripiega su `-d sat` solo se il primo fallisce.
+ * risponde all'auto-rilevamento di smartctl (si blocca fino al timeout
+ * invece di fallire subito) ma funziona perfettamente con `-d sat`
+ * forzato — verificato sul Wyse reale. L'ordine dei tentativi in
+ * `probeSmart` riflette questo: `-d sat` prima, auto-rilevamento come
+ * fallback per dischi dove non si applica (es. NVMe diretto).
  *
  * Entrambi i tentativi passano da `sudo`: i comandi ATA PASS-THROUGH di
  * `-d sat` richiedono CAP_SYS_RAWIO, che l'appartenenza al gruppo "disk"
@@ -79,12 +80,17 @@ export async function probeSmart(mountPath: string): Promise<SmartStatus> {
   if (!partitionDevice) return { available: false, health: "unknown", device: null };
   const device = baseDiskDevice(partitionDevice);
 
+  // -d sat provato per primo: caso più comune per questo progetto (disco
+  // dati esterno su bridge USB-SATA, dove l'auto-rilevamento si blocca
+  // fino al timeout invece di fallire subito — verificato sul Wyse
+  // reale). L'auto-rilevamento resta il fallback per dischi non SATA
+  // (es. NVMe diretto) dove -d sat non si applica.
   let stdout: string;
   try {
-    stdout = await runSmartctl(device);
+    stdout = await runSmartctl(device, ["-d", "sat"]);
   } catch {
     try {
-      stdout = await runSmartctl(device, ["-d", "sat"]);
+      stdout = await runSmartctl(device);
     } catch {
       return { available: false, health: "unknown", device };
     }
