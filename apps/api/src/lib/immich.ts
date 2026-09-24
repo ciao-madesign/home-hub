@@ -147,18 +147,22 @@ export async function listAlbums(): Promise<AlbumSummary[]> {
  * foto. Gli asset vanno recuperati a parte con lo stesso endpoint di
  * ricerca usato per la timeline (`/api/search/metadata`), filtrato per
  * `albumIds` e paginato fino a `nextPage: null`.
+ * Nota di incoerenza dell'API stessa: la richiesta vuole `page` come
+ * numero, ma la risposta restituisce `nextPage` come stringa — va
+ * riconvertito ad ogni giro, altrimenti Immich rifiuta con 400
+ * (verificato sul Wyse reale).
  */
 async function albumAssets(id: string): Promise<ImAsset[]> {
   const assets: ImAsset[] = [];
-  let page: string | null = "1";
-  while (page) {
-    const currentPage: string = page;
+  let page: number | null = 1;
+  while (page !== null) {
+    const currentPage: number = page;
     const data: ImSearchResponse = await im("/api/search/metadata", {
       method: "POST",
       body: { albumIds: [id], page: currentPage, size: 200, order: "desc" },
     });
     assets.push(...data.assets.items);
-    page = data.assets.nextPage;
+    page = data.assets.nextPage !== null ? Number(data.assets.nextPage) : null;
   }
   return assets;
 }
