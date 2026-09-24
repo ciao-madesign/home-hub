@@ -102,7 +102,12 @@ services:
     networks: [hub]
 
   immich-db:
-    image: tensorchord/pgvecto-rs:pg14-v0.2.0
+    # Immagine ufficiale Immich (non pgvecto-rs generico): le versioni
+    # recenti del server richiedono l'estensione "vchord" o "vector",
+    # che pgvecto-rs non fornisce più sotto quel nome — scoperto sul
+    # Wyse reale con immich-server in crash loop ("No vector extension
+    # found"), vedi docs/SPECIFICHE.md §5.
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
     restart: unless-stopped
     environment:
       POSTGRES_USER: immich
