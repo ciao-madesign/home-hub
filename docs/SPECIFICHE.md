@@ -1163,9 +1163,50 @@ in più (uno programmato, uno per un blocco durante l'installazione di
   preferiti del browser, per restare indipendenti da quale
   interfaccia/IP sia attivo in un dato momento.
 
+### Continuazione 24/09/2026 (parte 2) — riproduzione reale, Samba, stabilità rete
+
+- **Bug reale**: il dettaglio di un film/serie/episodio (necessario per
+  avviare la riproduzione) falliva sempre con "servizio non disponibile",
+  anche se le liste (Home, Film, Serie) caricavano bene. Causa:
+  `GET /Items/{id}` da solo risponde 400 su Jellyfin 12.x — le liste
+  funzionano senza contesto utente, ma il dettaglio di un singolo
+  elemento richiede `GET /Users/{userId}/Items/{id}` (verificato con
+  curl mirato contro l'istanza reale, guardando i log dell'Hub API in
+  tempo reale con `journalctl -f` per isolare quale chiamata falliva).
+  Aggiunta `HUB_JELLYFIN_USER_ID` in configurazione, centralizzato il
+  recupero di un singolo item in `getItem()`. **Riproduzione video
+  confermata funzionante sul Wyse reale**, incluso il test dalla TV.
+- **Samba** (`/etc/samba/smb.conf`, non nel repository — vedi sopra)
+  aggiunto per caricare Film/Serie via drag&drop da Mac/PC senza
+  terminale, su richiesta esplicita dell'utente.
+- **Trasferimento massivo di contenuti reali**: film/serie caricati per
+  davvero (Coyote vs Acme, House of the Dragon S03 parziale, True
+  Detective S01 completo, Chernobyl parziale) — nel percorso, scoperto e
+  gestito: file iCloud "segnaposto" su macOS (serve "Scarica ora" prima
+  di poterli spostare), limite 4GB per file di FAT32 (chiavetta
+  riformattata in exFAT), e una libreria "Serie TV" creata in Jellyfin
+  col tipo di contenuto sbagliato ("Film" invece di "Serie TV") che
+  classificava gli episodi come film isolati — risolto ricreando la
+  libreria da zero con il tipo giusto fin dall'inizio (non revocabile
+  cambiando tipo a libreria già scansionata).
+- **Home tile**: rimosso un testo fisso fuorviante ("Nessun contenuto
+  disponibile ancora") mostrato su ogni sezione della Home
+  indipendentemente dal contenuto reale — nessuna sezione ha mai avuto
+  un'anteprima dinamica, solo "Continua a guardare" mostra dati veri.
+- **Stabilità di rete**: la latenza Wi-Fi di casa è risultata instabile
+  più volte durante la sessione (fino a 1-1.6s verso il router, invece
+  di pochi ms) — causa esterna al progetto (rete/router/EOLO), non
+  l'Hub: verificato che i servizi sul Wyse restano sempre su durante
+  questi episodi (nessun riavvio, nessun crash). Consigliato all'utente
+  Ethernet anche per la TV se possibile, e `home-hub.local` (mDNS) nei
+  preferiti al posto dell'IP per restare indipendenti da quale
+  interfaccia sia attiva — nota però che alcuni Google TV/Android TV
+  non risolvono `.local` (riscontrato sul dispositivo reale
+  dell'utente): in quel caso serve comunque l'IP diretto.
+
 ### Prossimi passi (prossima sessione)
 
-1. ~~Jellyfin~~ ✅ fatto (24/09).
+1. ~~Jellyfin~~ ✅ fatto (24/09) — inclusa la riproduzione video reale.
 2. ~~Immich~~ ✅ fatto (24/09) — secondo utente creato per un familiare.
 3. **Backup**: rimandato in attesa di un secondo SSD dedicato (in arrivo,
    stessa taglia dell'attuale disco dati) — impostare `HUB_BACKUP_ROOT`
@@ -1178,8 +1219,7 @@ in più (uno programmato, uno per un blocco durante l'installazione di
 6. **Multi-disco reale**: quando arriva il secondo SSD (punto 3),
    verificare per la prima volta la scelta "disco con più spazio
    libero" (`lib/storage/library.ts`) con capacità realmente diverse.
-7. **Test da TV/dispositivo reale**: navigazione D-pad, sezioni Film/
-   Serie/Foto/File/Download, controller USB/Bluetooth per il Gaming
+7. **Controller USB/Bluetooth**: rimandato, per la sezione Gaming
    (SPEC_V1 Fase 11).
 8. **Verifica watchdog Docker reale** (`lib/serviceWatchdog.ts`): finora
    verificato solo contro comandi `docker` fittizi (vedi §4) — ora che
@@ -1189,5 +1229,9 @@ in più (uno programmato, uno per un blocco durante l'installazione di
 9. Valutare se serve ancora AdGuard Home (fuori roadmap, per ora fermo
    per il conflitto sulla porta 53 con `systemd-resolved` — vedi §31 in
    SPEC_V1 e commento in `infra/docker-compose.yml`).
-10. Popolare `infra/data/Media/{Movies,Series}` con contenuti reali per
-    un test end-to-end completo di riproduzione da Jellyfin.
+10. Completare il caricamento dei contenuti mancanti (House of the
+    Dragon S03E05/E06, Chernobyl S01E03-05) quando l'utente li recupera
+    da un'altra fonte.
+11. Valutare se collegare la TV via Ethernet invece che Wi-Fi, per
+    eliminare l'instabilità di rete osservata più volte in questa
+    sessione (causa esterna al progetto).
