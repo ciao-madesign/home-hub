@@ -1,0 +1,19 @@
+# Permesso sudo mirato per la lettura SMART dei dischi da Web App (§29).
+#
+# `smartctl -d sat` (necessario per i dischi dietro un bridge USB-SATA,
+# vedi apps/api/src/lib/storage/smart.ts) invia comandi ATA PASS-THROUGH
+# via SG_IO: il kernel li considera potenzialmente pericolosi e richiede
+# CAP_SYS_RAWIO anche con accesso in lettura/scrittura al device (gruppo
+# "disk") — scoperto sul Wyse reale, dove l'appartenenza al gruppo non
+# bastava. Questo file concede SOLO l'esecuzione di sola lettura
+# (-H -j, mai un comando che scrive sul disco), non un sudo generico
+# (§26, least privilege) — stesso principio di homehub-shutdown-sudoers,
+# homehub-update-sudoers e homehub-wifi-sudoers.
+#
+# Installazione:
+#   sudo cp infra/systemd/homehub-smart-sudoers /etc/sudoers.d/homehub-smart
+#   sudo chmod 440 /etc/sudoers.d/homehub-smart
+#   sudo visudo -c   # verifica sintassi prima di fidarsi del file installato
+
+homehub ALL=(root) NOPASSWD: /usr/sbin/smartctl -H -j /dev/*
+homehub ALL=(root) NOPASSWD: /usr/sbin/smartctl -H -j -d sat /dev/*

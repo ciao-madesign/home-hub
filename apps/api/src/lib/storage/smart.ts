@@ -56,9 +56,14 @@ function baseDiskDevice(device: string): string {
  * con `-d sat` forzato — verificato sul Wyse reale. Si tenta prima
  * l'auto-rilevamento (funziona per dischi collegati direttamente), poi
  * si ripiega su `-d sat` solo se il primo fallisce.
+ *
+ * Entrambi i tentativi passano da `sudo`: i comandi ATA PASS-THROUGH di
+ * `-d sat` richiedono CAP_SYS_RAWIO, che l'appartenenza al gruppo "disk"
+ * da sola non concede (verificato sul Wyse reale) — permesso sudo
+ * mirato in infra/systemd/homehub-smart-sudoers, sola lettura.
  */
 async function runSmartctl(device: string, extraArgs: string[] = []): Promise<string> {
-  const { stdout } = await execFileAsync(config.smartctlPath, ["-H", "-j", ...extraArgs, device], {
+  const { stdout } = await execFileAsync("sudo", ["-n", config.smartctlPath, "-H", "-j", ...extraArgs, device], {
     timeout: SMARTCTL_TIMEOUT_MS,
   });
   return stdout;

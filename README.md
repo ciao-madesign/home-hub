@@ -363,6 +363,13 @@ sudo cp /opt/home-hub/infra/systemd/homehub-wifi-sudoers /etc/sudoers.d/homehub-
 sudo chmod 440 /etc/sudoers.d/homehub-wifi
 sudo visudo -c
 
+# Lettura SMART (§29): su un disco dietro un bridge USB-SATA, "smartctl
+# -d sat" richiede CAP_SYS_RAWIO — l'appartenenza al gruppo "disk" da
+# sola non basta. Sudo mirato, sola lettura.
+sudo cp /opt/home-hub/infra/systemd/homehub-smart-sudoers /etc/sudoers.d/homehub-smart
+sudo chmod 440 /etc/sudoers.d/homehub-smart
+sudo visudo -c
+
 sudo cp /opt/home-hub/infra/systemd/home-hub-api.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now home-hub-api
