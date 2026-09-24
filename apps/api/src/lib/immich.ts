@@ -75,7 +75,6 @@ interface ImAlbum {
 
 interface ImAlbumDetail extends ImAlbum {
   description?: string;
-  assets: ImAsset[];
 }
 
 interface ImAsset {
@@ -141,16 +140,40 @@ export async function listAlbums(): Promise<AlbumSummary[]> {
   }));
 }
 
+/**
+ * `GET /api/albums/{id}` non include più gli asset dell'album (solo
+ * `assetCount`) nelle versioni recenti di Immich — scoperto sul Wyse
+ * reale (v3.2.2): un album apriva sempre vuoto nonostante contenesse
+ * foto. Gli asset vanno recuperati a parte con lo stesso endpoint di
+ * ricerca usato per la timeline (`/api/search/metadata`), filtrato per
+ * `albumIds` e paginato fino a `nextPage: null`.
+ */
+async function albumAssets(id: string): Promise<ImAsset[]> {
+  const assets: ImAsset[] = [];
+  let page: string | null = "1";
+  while (page) {
+    const currentPage: string = page;
+    const data: ImSearchResponse = await im("/api/search/metadata", {
+      method: "POST",
+      body: { albumIds: [id], page: currentPage, size: 200, order: "desc" },
+    });
+    assets.push(...data.assets.items);
+    page = data.assets.nextPage;
+  }
+  return assets;
+}
+
 export async function getAlbum(id: string): Promise<AlbumDetail | null> {
   try {
     const album = await im<ImAlbumDetail>(`/api/albums/${encodeURIComponent(id)}`);
+    const assets = await albumAssets(id);
     return {
       id: album.id,
       name: album.albumName,
       assetCount: album.assetCount,
       thumbnailAssetId: album.albumThumbnailAssetId,
       description: album.description ?? null,
-      assets: album.assets.map(toAsset),
+      assets: assets.map(toAsset),
     };
   } catch (err) {
     if (err instanceof ImmichError && err.status === 404) return null;
