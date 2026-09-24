@@ -19,13 +19,10 @@ function HomeSection({ to, label, icon: SectionIcon }: (typeof NAV_ITEMS)[number
         background: "var(--bg-card)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <SectionIcon style={{ color: "var(--accent-strong)" }} />
         <span style={{ fontWeight: 600, fontSize: 15 }}>{label}</span>
       </div>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--text-faint)" }}>
-        Nessun contenuto disponibile ancora.
-      </p>
     </Link>
   );
 }
