@@ -21,6 +21,18 @@ function baseUrl(): string {
   return config.jellyfinBaseUrl.replace(/\/+$/, "");
 }
 
+/**
+ * Jellyfin 12.x ha eliminato il supporto per il vecchio header
+ * `X-Emby-Token` (e per `?api_key=` in query string) — scoperto sul Wyse
+ * reale, dove ogni richiesta veniva rifiutata con 401 nonostante la
+ * chiave API fosse corretta. Serve il nuovo schema `Authorization:
+ * MediaBrowser Token="..."`, verificato funzionante contro l'istanza
+ * reale.
+ */
+function authHeader(): Record<string, string> {
+  return { Authorization: `MediaBrowser Token="${config.jellyfinApiKey}"` };
+}
+
 async function jf<T>(path: string, searchParams?: Record<string, string>): Promise<T> {
   if (!isJellyfinConfigured()) throw new JellyfinError("jellyfin_not_configured");
 
@@ -34,7 +46,7 @@ async function jf<T>(path: string, searchParams?: Record<string, string>): Promi
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     res = await fetch(url, {
-      headers: { "X-Emby-Token": config.jellyfinApiKey! },
+      headers: authHeader(),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -59,7 +71,7 @@ export async function jellyfinProxyFetch(
   }
   try {
     return await fetch(url, {
-      headers: { "X-Emby-Token": config.jellyfinApiKey!, ...extraHeaders },
+      headers: { ...authHeader(), ...extraHeaders },
     });
   } catch (err) {
     throw new JellyfinError(`jellyfin_unreachable: ${(err as Error).message}`);
