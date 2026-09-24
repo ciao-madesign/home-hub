@@ -496,7 +496,20 @@ lo usa come DNS. Verificato: sintassi `docker-compose.yml` validata con
 verificabile qui: nessuna rete/router reale per impostarlo come DNS e
 osservare il blocco in pratica.
 
-### Extra — Condivisione schermo, fuori roadmap
+### Extra — Condivisione Samba per il caricamento Media, fuori roadmap
+✅ Richiesta esplicita dell'utente (24/09/2026, deploy reale): vuole
+caricare film/serie con un drag&drop da Mac/PC senza terminale. Il File
+Manager della Web App è scoperto deliberatamente da `Media/Movies` e
+`Media/Series` (gestiti da Jellyfin, non dal File Manager — vedi
+`lib/files.ts`, scope `Files/shared`/`Files/private`), quindi non era
+utilizzabile per questo. Aggiunta una condivisione Samba (`smbd`)
+dedicata su `infra/data/Media`, utente Samba `michele` con password
+separata da quella della Web App/SSH. **Non è codice del repository**:
+è configurazione di sistema sul Wyse (`/etc/samba/smb.conf`), da
+rifare manualmente in caso di reinstallazione — vedi il blocco `[Media]`
+aggiunto in questa sessione se serve ricrearlo. L'utente `michele` è
+stato aggiunto al gruppo `homehub` (con permessi di gruppo su
+`Media/`) anche per poter scrivere lì via SSH/rsync senza `sudo`.
 ✅ Richiesta esplicita dell'utente. L'Hub fa da **relay WebRTC vero e
 proprio** (il video passa fisicamente attraverso l'Hub), non solo da
 segnalazione peer-to-peer — decisione presa con l'utente proprio per il
