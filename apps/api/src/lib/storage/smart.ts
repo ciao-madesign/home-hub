@@ -34,6 +34,22 @@ async function resolveDevice(mountPath: string): Promise<string | null> {
 }
 
 /**
+ * `findmnt` restituisce il device della partizione montata (es.
+ * `/dev/sda1`), ma su un bridge USB-SATA il passthrough SAT richiesto da
+ * `-d sat` funziona solo sul disco intero, non sulla partizione
+ * (`exit_status: 2`, apertura fallita — verificato sul Wyse reale). Si
+ * risale al disco base per i pattern di partizionamento comuni; se il
+ * pattern non è riconosciuto si prova comunque con il device originale.
+ */
+function baseDiskDevice(device: string): string {
+  const sataOrIde = device.match(/^(\/dev\/(?:sd|hd)[a-z]+)\d+$/);
+  if (sataOrIde) return sataOrIde[1];
+  const nvmeOrMmc = device.match(/^(\/dev\/(?:nvme\d+n\d+|mmcblk\d+))p\d+$/);
+  if (nvmeOrMmc) return nvmeOrMmc[1];
+  return device;
+}
+
+/**
  * Un SSD dietro un bridge USB-SATA (caso comune per il disco dati
  * esterno di questo progetto, vedi docs/SPECIFICHE.md §5) spesso non
  * risponde all'auto-rilevamento di smartctl ma funziona perfettamente
@@ -54,8 +70,9 @@ async function runSmartctl(device: string, extraArgs: string[] = []): Promise<st
  * esplicito a "non disponibile" invece di un errore, coerente con §31.
  */
 export async function probeSmart(mountPath: string): Promise<SmartStatus> {
-  const device = await resolveDevice(mountPath);
-  if (!device) return { available: false, health: "unknown", device: null };
+  const partitionDevice = await resolveDevice(mountPath);
+  if (!partitionDevice) return { available: false, health: "unknown", device: null };
+  const device = baseDiskDevice(partitionDevice);
 
   let stdout: string;
   try {
