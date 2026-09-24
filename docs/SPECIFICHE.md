@@ -941,13 +941,12 @@ proposte/decisioni chiuse, vedi rispettivamente Fase 7 (due volte), Fase
   contro un PC reale che si accende davvero (nessun target disponibile
   in questo ambiente). Vedi anche la nota architetturale al punto
   precedente su dove devono girare fisicamente gli emulatori.
-- SMART (`lib/storage/smart.ts`) verificato solo nel percorso di
-  degrado: né `smartctl` né un accesso privilegiato a un device reale
-  sono disponibili in questo ambiente sandbox, quindi il percorso "letto
-  con successo" (parsing del JSON di `smartctl -H -j`) non è stato
-  esercitato contro un output reale — solo contro la logica di
-  parsing/gestione errori. Da verificare sul Wyse con `smartmontools`
-  installato.
+- SMART (`lib/storage/smart.ts`) ✅ verificato per davvero sul Wyse
+  reale il 24/09/2026 (§5): tre bug corretti (timeout mancante — si
+  bloccava indefinitamente senza `-d sat` invece di fallire, device
+  della partizione invece del disco base, `CAP_SYS_RAWIO` non concesso
+  dal solo gruppo `disk` — permesso sudo mirato aggiunto). Stato letto
+  con successo su un SSD reale (PNY CS900 120GB, `SSD_Life_Left` 100%).
 - Backup: verificato a fondo su filesystem reale in questo ambiente
   (copia con limite di banda, verifica di integrità, skip incrementale,
   gestione file modificato a metà copia, snapshot DB via `VACUUM INTO`,
@@ -1086,27 +1085,68 @@ Jellyfin/Immich via Docker Compose, storage su disco USB esterno
 verificato con un riavvio reale), spegnimento sicuro da Web App,
 wizard di primo avvio completato con un utente admin reale.
 
+### Continuazione 24/09/2026 — Jellyfin, Immich, SMART
+
+Seconda sessione sullo stesso hardware. Confermata la persistenza del
+setup: Wi-Fi, Docker e Hub API ripartiti da soli dopo due riavvii reali
+in più (uno programmato, uno per un blocco durante l'installazione di
+`smartmontools` — vedi sotto).
+
+- **Bug reale, stessa famiglia di ieri**: `containerd` (il motore sotto
+  Docker) ha una propria cartella dati (`/var/lib/containerd`),
+  **separata** da quella di Docker (`/var/lib/docker`, già spostata
+  ieri) — non l'avevamo spostata, quindi l'eMMC si è di nuovo riempita
+  (immagine Postgres di Immich, ~7GB) fino a bloccare anche
+  l'installazione di un pacchetto da 643KB. Risolto: dati spostati su
+  `/mnt/data/containerd`, `root` impostato in `/etc/containerd/
+  config.toml`, stessa protezione d'ordine al boot
+  (`RequiresMountsFor=/mnt/data`) già usata per `docker.service` e
+  `home-hub-api.service`.
+- **Bug reale**: l'immagine Postgres di Immich
+  (`tensorchord/pgvecto-rs:pg14-v0.2.0`) non è più compatibile con le
+  versioni recenti del server Immich (richiedono l'estensione "vchord"
+  o "vector", non più fornita sotto quel nome) — immich-server andava in
+  crash loop con "No vector extension found". Corretta con l'immagine
+  Postgres ufficiale del progetto Immich
+  (`ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0`).
+- **Tre bug reali in cascata su SMART** (`lib/storage/smart.ts`),
+  scoperti nell'ordine impersonando l'utente `homehub` sul Wyse reale:
+  1. `smartctl` senza `-d sat` **si blocca indefinitamente** (non
+     fallisce) su un SSD dietro un bridge USB-SATA — aggiunto un timeout
+     esplicito (5s) a ogni chiamata esterna, mai presente per default in
+     `execFile` di Node.
+  2. `findmnt` restituisce il device della partizione montata
+     (`/dev/sda1`), ma il passthrough SAT funziona solo sul disco
+     intero (`/dev/sda`) — aggiunta la normalizzazione partizione→disco
+     base.
+  3. Anche con l'utente nel gruppo `disk`, i comandi ATA PASS-THROUGH di
+     `-d sat` restano bloccati da `CAP_SYS_RAWIO` (limite del kernel, non
+     di permessi sul file) — aggiunto un permesso sudo mirato dedicato
+     (`infra/systemd/homehub-smart-sudoers`, sola lettura), stesso
+     principio di spegnimento/aggiornamenti/Wi-Fi. Infine invertito
+     l'ordine dei tentativi (`-d sat` prima, non dopo il timeout
+     dell'auto-rilevamento) per evitare 5s di attesa inutile a ogni
+     controllo — la Web App restava "in caricamento" per questo.
+- Jellyfin e Immich collegati per davvero: API key create e configurate
+  in `apps/api/.env`, librerie Film/Serie aggiunte in Jellyfin, foto
+  reali caricate su Immich dall'app del telefono, secondo utente Immich
+  creato per un familiare.
+- SMART verificato funzionante sul disco dati esterno reale (PNY CS900
+  120GB): stato "OK", `SSD_Life_Left` 100%.
+
 ### Prossimi passi (prossima sessione)
 
-1. **Jellyfin**: creare l'API key (Dashboard → API Keys) e configurarla
-   in `apps/api/.env` (`HUB_JELLYFIN_API_KEY`, `HUB_JELLYFIN_BASE_URL`);
-   copiare/collegare film e serie reali sotto `infra/data/Media/` e
-   verificare libreria/riproduzione dalla Web App.
-2. **Immich**: creare l'account admin, generare l'API key (Account
-   Settings → API Keys), configurarla in `apps/api/.env`
-   (`HUB_IMMICH_API_KEY`, `HUB_IMMICH_BASE_URL`); caricare qualche foto
-   di prova.
-3. **Backup**: impostare `HUB_BACKUP_ROOT` (serve un disco/partizione
-   dedicato — valutare se il disco USB da 120GB o uno nuovo, dato che
-   ora ospita già i dati principali) e verificare backup manuale +
-   ripristino per davvero.
-4. **SMART**: `sudo apt install smartmontools` e verificare che l'Hub
-   API (utente `homehub`) riesca a leggere lo stato dei dischi.
+1. ~~Jellyfin~~ ✅ fatto (24/09).
+2. ~~Immich~~ ✅ fatto (24/09) — secondo utente creato per un familiare.
+3. **Backup**: rimandato in attesa di un secondo SSD dedicato (in arrivo,
+   stessa taglia dell'attuale disco dati) — impostare `HUB_BACKUP_ROOT`
+   quando disponibile e verificare backup manuale + ripristino per
+   davvero.
+4. ~~SMART~~ ✅ fatto (24/09) — tre bug reali corretti, vedi sopra.
 5. **yt-dlp**: `pip install yt-dlp` (o `pip install --user`, attenzione
    al PATH di systemd — vedi commento in `apps/api/.env.example`) per
    attivare il Download Manager da URL.
-6. **Multi-disco reale**: quando arriva un secondo disco dati (la spec
-   parlava di un disco da 500GB, quello collegato oggi è da 120GB),
+6. **Multi-disco reale**: quando arriva il secondo SSD (punto 3),
    verificare per la prima volta la scelta "disco con più spazio
    libero" (`lib/storage/library.ts`) con capacità realmente diverse.
 7. **Test da TV/dispositivo reale**: navigazione D-pad, sezioni Film/
@@ -1120,3 +1160,5 @@ wizard di primo avvio completato con un utente admin reale.
 9. Valutare se serve ancora AdGuard Home (fuori roadmap, per ora fermo
    per il conflitto sulla porta 53 con `systemd-resolved` — vedi §31 in
    SPEC_V1 e commento in `infra/docker-compose.yml`).
+10. Popolare `infra/data/Media/{Movies,Series}` con contenuti reali per
+    un test end-to-end completo di riproduzione da Jellyfin.
