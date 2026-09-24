@@ -1131,8 +1131,24 @@ in più (uno programmato, uno per un blocco durante l'installazione di
   in `apps/api/.env`, librerie Film/Serie aggiunte in Jellyfin, foto
   reali caricate su Immich dall'app del telefono, secondo utente Immich
   creato per un familiare.
+- **Bug reale di compatibilità**: Jellyfin 12.1.0 (versione reale di
+  questo deploy) ha eliminato il supporto per il vecchio header
+  `X-Emby-Token` e per `?api_key=` in query string, su cui si basava
+  tutto `lib/jellyfin.ts` — ogni richiesta falliva con 401 nonostante la
+  chiave API corretta (Film mostrava "servizio temporaneamente non
+  disponibile"). Verificato empiricamente contro l'istanza reale che
+  serve il nuovo schema `Authorization: MediaBrowser Token="..."`.
+  Corretto in un unico punto (`authHeader()`), usato sia dalle richieste
+  JSON sia dal proxy streaming video/immagini.
 - SMART verificato funzionante sul disco dati esterno reale (PNY CS900
   120GB): stato "OK", `SSD_Life_Left` 100%.
+- **Rete**: Wi-Fi confermato instabile in questo ambiente reale
+  (latenza 30-200ms, invece dei pochi ms attesi) — Ethernet ricollegato
+  come connessione principale (metrica di routing più bassa, 100 contro
+  600 del Wi-Fi, che resta di riserva). Consigliato l'uso di
+  `http://home-hub.local` (mDNS, già configurato) al posto dell'IP nei
+  preferiti del browser, per restare indipendenti da quale
+  interfaccia/IP sia attivo in un dato momento.
 
 ### Prossimi passi (prossima sessione)
 
