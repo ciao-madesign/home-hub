@@ -33,9 +33,16 @@ export const config = {
   immichUrl: process.env.HUB_IMMICH_URL ?? null,
 
   // Client Jellyfin (Fase 5 — Film/Serie, §7). L'API key si crea da
-  // Jellyfin: Dashboard → API Keys.
+  // Jellyfin: Dashboard → API Keys. jellyfinUserId serve solo per il
+  // recupero di un singolo item (GET /Users/{id}/Items/{id}) — nelle
+  // versioni recenti di Jellyfin le liste funzionano senza, ma il
+  // dettaglio di un singolo film/serie/episodio richiede un utente
+  // esplicito (scoperto sul Wyse reale, vedi docs/SPECIFICHE.md §5).
+  // Si trova in Jellyfin: Dashboard → Utenti → clicca il tuo utente →
+  // l'ID è nell'URL, oppure GET /Users con l'API key.
   jellyfinBaseUrl: process.env.HUB_JELLYFIN_BASE_URL ?? null,
   jellyfinApiKey: process.env.HUB_JELLYFIN_API_KEY ?? null,
+  jellyfinUserId: process.env.HUB_JELLYFIN_USER_ID ?? null,
 
   // Client Immich (Fase 5 — Foto/Video personali, §8). L'API key si crea
   // da Immich: Account Settings → API Keys.

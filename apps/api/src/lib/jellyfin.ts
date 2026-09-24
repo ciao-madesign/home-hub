@@ -33,6 +33,22 @@ function authHeader(): Record<string, string> {
   return { Authorization: `MediaBrowser Token="${config.jellyfinApiKey}"` };
 }
 
+/**
+ * Recupero di un singolo item. `GET /Items/{id}` da solo risponde 400
+ * "Error processing request" su Jellyfin 12.x (verificato sul Wyse
+ * reale con curl) — le liste (`GET /Items?filtro`) funzionano ancora
+ * senza contesto utente, ma il dettaglio di un singolo elemento richiede
+ * `GET /Users/{userId}/Items/{id}`. Senza `jellyfinUserId` configurato
+ * si tenta comunque la forma vecchia, per non rompersi silenziosamente
+ * se un futuro aggiornamento di Jellyfin la reintroducesse.
+ */
+function getItem<T>(id: string, fields: string): Promise<T> {
+  const path = config.jellyfinUserId
+    ? `/Users/${encodeURIComponent(config.jellyfinUserId)}/Items/${encodeURIComponent(id)}`
+    : `/Items/${encodeURIComponent(id)}`;
+  return jf<T>(path, { Fields: fields });
+}
+
 async function jf<T>(path: string, searchParams?: Record<string, string>): Promise<T> {
   if (!isJellyfinConfigured()) throw new JellyfinError("jellyfin_not_configured");
 
@@ -213,7 +229,7 @@ export async function listMovies(): Promise<MediaSummary[]> {
 
 export async function getMovie(id: string): Promise<MovieDetail | null> {
   try {
-    const item = await jf<JfItem>(`/Items/${encodeURIComponent(id)}`, { Fields: ITEM_FIELDS });
+    const item = await getItem<JfItem>(id, ITEM_FIELDS);
     return toMovieDetail(item);
   } catch (err) {
     if (err instanceof JellyfinError && err.status === 404) return null;
@@ -243,7 +259,7 @@ export async function listSeries(): Promise<MediaSummary[]> {
 
 export async function getSeries(id: string): Promise<MediaSummary | null> {
   try {
-    const item = await jf<JfItem>(`/Items/${encodeURIComponent(id)}`, { Fields: ITEM_FIELDS });
+    const item = await getItem<JfItem>(id, ITEM_FIELDS);
     return toSummary(item);
   } catch (err) {
     if (err instanceof JellyfinError && err.status === 404) return null;
@@ -276,9 +292,7 @@ export async function listEpisodes(
 
 export async function getEpisode(id: string): Promise<EpisodeDetail | null> {
   try {
-    const item = await jf<JfItem>(`/Items/${encodeURIComponent(id)}`, {
-      Fields: "Overview,RunTimeTicks,MediaSources,MediaStreams,SeriesId,SeasonId",
-    });
+    const item = await getItem<JfItem>(id, "Overview,RunTimeTicks,MediaSources,MediaStreams,SeriesId,SeasonId");
     return {
       id: item.Id,
       title: item.Name,
