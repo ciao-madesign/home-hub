@@ -1235,3 +1235,17 @@ in più (uno programmato, uno per un blocco durante l'installazione di
 11. Valutare se collegare la TV via Ethernet invece che Wi-Fi, per
     eliminare l'instabilità di rete osservata più volte in questa
     sessione (causa esterna al progetto).
+12. **DHCP reservation per il Dell Wyse** (appunto 25/09, da fare — non
+    ancora eseguito): osservato che il Wyse ha ricevuto lo stesso IP
+    prima assegnato a un altro dispositivo della rete domestica (Orange
+    Pi, progetto separato ARALD) dopo che questo era stato scollegato —
+    comportamento DHCP normale (riuso di un indirizzo libero), non un
+    bug dell'Hub. Da chiedere al gestore della rete/router una
+    prenotazione DHCP basata sul MAC address del Wyse, cioè un IP
+    locale fisso ma assegnato dal router (non IP statico configurato sul
+    Wyse stesso) — riduce il rischio che l'IP cambi e rompa preferiti
+    salvati, port forwarding per l'accesso remoto (VPN, §31/GUIDA_VPN)
+    o configurazioni che referenziano l'IP diretto invece di
+    `home-hub.local` (mDNS, non risolto da alcuni Android TV, vedi
+    23-24/09 sopra). Verificare che l'IP riservato sia fuori dal pool
+    dinamico del router. Nessuna modifica di codice richiesta lato Hub.
