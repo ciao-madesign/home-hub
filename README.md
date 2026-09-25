@@ -467,9 +467,27 @@ permette, o **CGNAT** (probabile con provider FWA come EOLO, vedi
 router con quello visto da un dispositivo su rete mobile — se diversi,
 CGNAT confermato) — salta i punti 2-3 e usa invece il **tunnel gratuito**:
 
+**Modo più semplice ("Quick Tunnel"), senza account né dominio:**
+```bash
+cd /opt/home-hub/infra
+docker compose --profile remote-tunnel up -d
+docker compose logs cloudflared
+```
+Nei log compare un indirizzo pubblico temporaneo tipo
+`https://parole-casuali.trycloudflare.com` — è subito raggiungibile da
+Internet, nessuna porta da aprire sul router. Limite: l'indirizzo cambia
+se il container `cloudflared` si riavvia (basta ripetere
+`docker compose logs cloudflared` per quello nuovo). Un dominio non
+serve mai a essere pagato per il tunnel in sé, in nessuna delle due
+modalità — solo la registrazione di un dominio personalizzato (se lo
+si vuole, per un indirizzo stabile) ha un costo a parte con un
+registrar, non con Cloudflare.
+
+**Con dominio stabile (non cambia mai), serve un account Cloudflare gratuito:**
+
 1. Crea un account gratuito su [Cloudflare](https://dash.cloudflare.com)
-   (non serve un dominio a pagamento: Cloudflare ne offre uno gratuito
-   per il tunnel, o puoi collegarne uno tuo se ne hai già uno gestito lì).
+   (non serve un dominio a pagamento: puoi collegarne uno tuo se ne hai
+   già uno gestito lì, anche gratuito).
 2. Vai su [one.dash.cloudflare.com](https://one.dash.cloudflare.com) →
    Networks → Tunnels → "Create a tunnel" → tipo "Cloudflared". Dagli un
    nome (es. "home-hub") e copia il **token** mostrato nel passo

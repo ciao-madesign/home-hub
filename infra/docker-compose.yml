@@ -168,27 +168,41 @@ services:
   # dall'Hub verso Cloudflare, niente da inoltrare sul router. Sempre
   # gratuito per questo uso (nessun piano a pagamento richiesto).
   #
-  # Attivare con `docker compose --profile remote-tunnel up -d`, dopo
-  # aver creato un tunnel gratuito su https://one.dash.cloudflare.com
-  # (Zero Trust → Networks → Tunnels → "Create a tunnel", tipo
-  # "Cloudflared") e impostato HUB_CLOUDFLARE_TUNNEL_TOKEN in infra/.env
-  # — vedi README "Deploy" per la procedura passo passo. Nel pannello del
-  # tunnel, il "Public Hostname" va configurato con service
-  # "http://caddy-tunnel:8080" (non "web:80" direttamente, vedi sotto).
+  # Attivare con `docker compose --profile remote-tunnel up -d`. Due
+  # modalità, scelte da sole in base a HUB_CLOUDFLARE_TUNNEL_TOKEN:
+  #
+  # - Senza token (default, "Quick Tunnel"): nessun account Cloudflare
+  #   richiesto, cloudflared genera da solo un indirizzo pubblico
+  #   temporaneo tipo https://parole-casuali.trycloudflare.com, stampato
+  #   nei suoi log (`docker compose logs cloudflared`) — cambia se il
+  #   container si riavvia. Il modo più semplice per iniziare.
+  # - Con token (tunnel con nome, dominio stabile): crea un tunnel
+  #   gratuito su https://one.dash.cloudflare.com (Zero Trust → Networks
+  #   → Tunnels → "Create a tunnel") e imposta
+  #   HUB_CLOUDFLARE_TUNNEL_TOKEN in infra/.env — vedi README "Deploy".
+  #   Nel pannello del tunnel, il "Public Hostname" va configurato con
+  #   service "http://caddy-tunnel:8080" (non "web:80" direttamente,
+  #   vedi sotto).
   #
   # Alternativa a Caddy con dominio pubblico + porta 443 aperta (sopra):
   # usa questo profilo invece di "remote-https" quando il port forwarding
-  # non è un'opzione. I due profili possono anche convivere.
+  # non è un'opzione (es. CGNAT). I due profili possono anche convivere.
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     profiles: ["remote-tunnel"]
-    command: tunnel run
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ -n "$$TUNNEL_TOKEN" ]; then
+          exec cloudflared tunnel run
+        else
+          exec cloudflared tunnel --no-autoupdate --url http://caddy-tunnel:8080
+        fi
     environment:
-      # Default vuoto invece di ${VAR:?...}, stesso motivo del commento su
-      # HUB_PUBLIC_DOMAIN nel servizio "caddy" sopra: qui cloudflared
-      # fallisce da solo (loggando l'errore di autenticazione) se avviato
-      # senza token, invece di rompere l'intero docker-compose.yml.
+      # Default vuoto invece di ${VAR:?...}: senza token si passa da soli
+      # alla modalità Quick Tunnel sopra, invece di rompere l'intero
+      # docker-compose.yml o fallire con un errore di autenticazione.
       TUNNEL_TOKEN: ${HUB_CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
       - caddy-tunnel
