@@ -1232,6 +1232,57 @@ in più (uno programmato, uno per un blocco durante l'installazione di
 10. Completare il caricamento dei contenuti mancanti (House of the
     Dragon S03E05/E06, Chernobyl S01E03-05) quando l'utente li recupera
     da un'altra fonte.
-11. Valutare se collegare la TV via Ethernet invece che Wi-Fi, per
-    eliminare l'instabilità di rete osservata più volte in questa
-    sessione (causa esterna al progetto).
+11. ~~Valutare se collegare la TV via Ethernet~~ ✅ fatto (04/10) per il
+    Wyse stesso — vedi sotto. La TV resta collegata come preferisce
+    l'utente.
+
+### Continuazione 04/10/2026 (parte 3) — condivisione Downloads, libreria mancante, conflitto IP
+
+- **Samba**: aggiunta una seconda condivisione `[Downloads]` (stesso
+  pattern di `[Media]`, vedi `/etc/samba/smb.conf` sul Wyse, non nel
+  repository) — il Download Manager scrive in `Downloads/`, che prima
+  non era raggiungibile da PC/Mac senza terminale per spostare i file
+  completati dentro `Media/`.
+- **Bug operativo (non di codice)**: episodi scaricati e spostati a mano
+  in `Media/Series/X Factor Italia/` non comparivano in Jellyfin pur
+  venendo conteggiati nel totale episodi. Causa: nessuna libreria
+  Jellyfin configurata include quel percorso — in questo Hub ogni serie
+  ha la propria libreria dedicata (vedi `GET /Library/VirtualFolders`),
+  non esiste una libreria generica su tutta `Media/Series`. Una cartella
+  fuori da ogni libreria esistente non viene scansionata, anche se i
+  file sono presenti sul disco. Risolto creando una libreria dedicata
+  per la nuova serie. Procedura documentata in `docs/GUIDA_USO.md` per
+  non doverla ridiagnosticare ogni volta.
+- **Bug reale di rete (non di codice)**: dopo aver impostato un IP
+  statico (`192.168.1.8`) sull'interfaccia Wi-Fi del Wyse, un distacco
+  accidentale del cavo Ethernet e il suo successivo ripristino hanno
+  causato una perdita di raggiungibilità intermittente e un avviso di
+  sicurezza SSH ("host key changed"). Causa isolata con `arp -a` dal
+  client + confronto MAC (`ip link show`): non un dispositivo estraneo
+  né un attacco, ma **ARP flux** — con Ethernet e Wi-Fi del Wyse attive
+  insieme sulla stessa rete, Linux può rispondere alle richieste ARP per
+  un indirizzo passando dall'interfaccia "sbagliata". Risolto spostando
+  l'IP statico `192.168.1.8` sulla scheda **Ethernet** (`enp1s0`, il
+  collegamento primario/più stabile) e rimettendo il Wi-Fi in DHCP
+  automatico come backup reale in caso di cavo scollegato (indirizzo
+  diverso in quel caso, da raggiungere via `home-hub.local` o IP
+  aggiornato). Riserva DHCP sul router valutata come alternativa più
+  robusta ma scartata: l'utente non ha le credenziali del router.
+- **Nuovo**: `docs/GUIDA_USO.md` — guida per l'uso quotidiano
+  (aggiungere episodi/serie esistenti o nuove, spostare i download,
+  problemi comuni), pensata per non dover ripetere questi stessi
+  passaggi/diagnosi a ogni nuovo download. Linkata da `README.md`
+  insieme alle altre guide.
+
+### Prossimi passi (prossima sessione)
+
+1. **Tunnel Cloudflare (accesso remoto)**: avvio sospeso più volte in
+   questa sessione per occuparsi di altri problemi più urgenti — da
+   completare: `docker compose --profile remote-tunnel up -d` e
+   recupero dell'URL pubblico da `docker compose logs cloudflared`.
+2. **yt-dlp**: ancora da installare (`pip install --user yt-dlp`) per
+   attivare il Download Manager da URL — rimandato più volte, non
+   ancora fatto.
+3. Tutti i punti rimasti aperti dalla sessione precedente (Backup,
+   controller, multi-disco, watchdog Docker reale, AdGuard, contenuti
+   mancanti) restano invariati — vedi sopra.

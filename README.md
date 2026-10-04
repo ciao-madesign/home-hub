@@ -544,6 +544,9 @@ Guida passo passo per chi deve solo *usare* la VPN (non configurarla),
 da linkare o stampare per gli utenti finali: `docs/GUIDA_VPN.md`.
 Guida per spostare l'intero Hub (dati compresi) su un altro dispositivo:
 `docs/GUIDA_MIGRAZIONE.md`.
+Guida per l'uso quotidiano (aggiungere episodi/serie, spostare i
+download, problemi comuni — niente terminale richiesto):
+`docs/GUIDA_USO.md`.
 
 ### Aggiornamenti
 
