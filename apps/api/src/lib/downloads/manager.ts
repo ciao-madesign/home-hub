@@ -1,13 +1,15 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import { config } from "../../config.js";
 import { startTorrentDownload, updateTorrentThrottle } from "./torrent.js";
 import { startYtDlpDownload } from "./ytdlp.js";
 import * as store from "./store.js";
-import type { DownloadKind, DownloadRow } from "./store.js";
+import type { DestinationKind, DownloadKind, DownloadRow } from "./store.js";
 import type { EngineCallbacks, EngineHandle } from "./types.js";
 import { effectiveDownloadRateKbps } from "../priority.js";
 import { isBackupRunning } from "../storage/backup.js";
 import { absOnDisk, pickWriteDisk } from "../storage/library.js";
+import { assertSafeRelativePath } from "../pathSafety.js";
 
 export class DownloadsError extends Error {
   constructor(
@@ -33,6 +35,27 @@ export async function processQueue(): Promise<void> {
     if (!next) break;
     await startJob(next);
   }
+}
+
+/**
+ * Smistamento automatico (§12): "movie"/"series" salvano direttamente
+ * nella libreria Jellyfin (Media/Movies, Media/Series/<percorso>) invece
+ * che in Downloads/ — niente spostamento manuale successivo (vedi
+ * docs/GUIDA_USO.md). Media non partecipa alla libreria multi-disco
+ * (percorso fisso, coerente col bind-mount singolo di Jellyfin in
+ * infra/docker-compose.yml), a differenza di Downloads/ che sceglie il
+ * disco con più spazio libero via pickWriteDisk().
+ */
+async function destinationDir(row: DownloadRow): Promise<string> {
+  if (row.destination_kind === "movie") {
+    return path.join(config.dataRoot, "Media", "Movies");
+  }
+  if (row.destination_kind === "series") {
+    const segments = assertSafeRelativePath(row.destination_path ?? "");
+    return path.join(config.dataRoot, "Media", "Series", ...segments);
+  }
+  const disk = await pickWriteDisk();
+  return absOnDisk(disk, "Downloads", []);
 }
 
 /** Libreria virtuale multi-disco (§4): ogni download è contenuto nuovo, sceglie il disco con più spazio libero al momento in cui parte davvero (non alla messa in coda). */
@@ -64,8 +87,7 @@ async function startJob(row: DownloadRow): Promise<void> {
     },
   };
 
-  const disk = await pickWriteDisk();
-  const dir = absOnDisk(disk, "Downloads", []);
+  const dir = await destinationDir(row);
   await fs.mkdir(dir, { recursive: true });
   const handle =
     row.kind === "url"
@@ -79,8 +101,10 @@ export async function enqueue(
   userId: string,
   kind: DownloadKind,
   source: string,
+  destinationKind: DestinationKind = "downloads",
+  destinationPath: string | null = null,
 ): Promise<DownloadRow> {
-  const row = store.createDownload(userId, kind, source);
+  const row = store.createDownload(userId, kind, source, destinationKind, destinationPath);
   await processQueue();
   return row;
 }

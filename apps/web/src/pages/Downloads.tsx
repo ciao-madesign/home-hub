@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type DownloadItem, type DownloadStatus } from "../api/client";
+import { api, type DestinationKind, type DownloadItem, type DownloadStatus } from "../api/client";
 import { formatBytes, formatSpeed } from "../lib/format";
+
+const DESTINATION_LABELS: Record<DestinationKind, string> = {
+  downloads: "Downloads (sposta a mano dopo)",
+  movie: "Film",
+  series: "Serie TV",
+};
 
 const STATUS_LABELS: Record<DownloadStatus, string> = {
   queued: "In coda",
@@ -55,6 +61,19 @@ function DownloadRow({ item, onChanged }: { item: DownloadItem; onChanged: () =>
         >
           {item.kind === "url" ? "URL" : "Torrent"}
         </span>
+        {item.destinationKind !== "downloads" && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--accent-strong)",
+              flexShrink: 0,
+            }}
+            title={item.destinationPath ?? undefined}
+          >
+            → {item.destinationKind === "movie" ? "Film" : item.destinationPath}
+          </span>
+        )}
         <p
           style={{
             margin: 0,
@@ -141,8 +160,16 @@ export function Downloads() {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [urlInput, setUrlInput] = useState("");
   const [magnetInput, setMagnetInput] = useState("");
+  const [destKind, setDestKind] = useState<DestinationKind>("downloads");
+  const [destPath, setDestPath] = useState("");
   const [error, setError] = useState<string | null>(null);
   const torrentFileInput = useRef<HTMLInputElement>(null);
+
+  function currentDestination() {
+    return destKind === "series"
+      ? { destinationKind: destKind, destinationPath: destPath.trim() }
+      : { destinationKind: destKind };
+  }
 
   function refresh() {
     api
@@ -159,12 +186,21 @@ export function Downloads() {
     return () => clearInterval(interval);
   }, []);
 
+  function checkDestination(): boolean {
+    if (destKind === "series" && !destPath.trim()) {
+      setError('Indica la sottocartella della serie (es. "Nome Serie/Season 01").');
+      return false;
+    }
+    return true;
+  }
+
   async function addUrl(e: React.FormEvent) {
     e.preventDefault();
     if (!urlInput.trim()) return;
     setError(null);
+    if (!checkDestination()) return;
     try {
-      await api.addUrlDownload(urlInput.trim());
+      await api.addUrlDownload(urlInput.trim(), currentDestination());
       setUrlInput("");
       refresh();
     } catch {
@@ -176,8 +212,9 @@ export function Downloads() {
     e.preventDefault();
     if (!magnetInput.trim()) return;
     setError(null);
+    if (!checkDestination()) return;
     try {
-      await api.addTorrentDownload(magnetInput.trim());
+      await api.addTorrentDownload(magnetInput.trim(), currentDestination());
       setMagnetInput("");
       refresh();
     } catch {
@@ -189,8 +226,9 @@ export function Downloads() {
     const file = files?.[0];
     if (!file) return;
     setError(null);
+    if (!checkDestination()) return;
     try {
-      await api.uploadTorrentFile(file);
+      await api.uploadTorrentFile(file, currentDestination());
       refresh();
     } catch {
       setError("Impossibile caricare il file .torrent.");
@@ -200,6 +238,37 @@ export function Downloads() {
   return (
     <div>
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 20px" }}>Download</h1>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <label style={{ fontSize: 13, color: "var(--text-faint)" }}>Salva in:</label>
+        <select
+          value={destKind}
+          onChange={(e) => setDestKind(e.target.value as DestinationKind)}
+          style={{ ...inputStyle, flex: "0 0 auto" }}
+        >
+          {(Object.keys(DESTINATION_LABELS) as DestinationKind[]).map((k) => (
+            <option key={k} value={k}>
+              {DESTINATION_LABELS[k]}
+            </option>
+          ))}
+        </select>
+        {destKind === "series" && (
+          <input
+            value={destPath}
+            onChange={(e) => setDestPath(e.target.value)}
+            placeholder="Nome Serie/Season 01"
+            style={{ ...inputStyle, flex: "1 1 220px" }}
+          />
+        )}
+      </div>
 
       <div
         style={{

@@ -1274,6 +1274,51 @@ in più (uno programmato, uno per un blocco durante l'installazione di
   passaggi/diagnosi a ogni nuovo download. Linkata da `README.md`
   insieme alle altre guide.
 
+### Continuazione 11/10/2026 (parte 4) — smistamento automatico dei download
+
+- **Nuova funzionalità** (richiesta esplicita dell'utente, per evitare lo
+  spostamento manuale via Samba ad ogni download): il Download Manager
+  accetta ora un `destinationKind` opzionale (`"downloads"` default,
+  `"movie"`, `"series"` + `destinationPath`) sia per i download URL/
+  magnet (`POST /api/downloads`) sia per l'upload di un file `.torrent`
+  (`POST /api/downloads/upload-torrent`). Con `"movie"`/`"series"` il
+  file viene scritto direttamente in `Media/Movies` o
+  `Media/Series/<destinationPath>` invece che in `Downloads/` — niente
+  spostamento manuale per i casi comuni. Il comportamento storico resta
+  il default (`"downloads"`), retrocompatibile con client/richieste che
+  non passano il nuovo campo.
+  - Validazione del percorso (`destinationPath`) fatta al **boundary**
+    (route, non al lancio del job) con `pathSafety.ts:
+    assertSafeRelativePath`, per un 400 immediato invece di un job che
+    fallisce subito dopo la messa in coda — stesso principio già in uso
+    per File Manager/Gaming (vedi CLAUDE.md).
+  - `Media` non partecipa alla libreria virtuale multi-disco
+    (`lib/storage/library.ts`): percorso fisso sotto `HUB_DATA_ROOT`,
+    coerente col bind-mount singolo di Jellyfin in
+    `infra/docker-compose.yml` — a differenza di `Downloads/`, che
+    continua a scegliere il disco con più spazio libero via
+    `pickWriteDisk()`.
+  - Migrazione `0013_downloads_destination.sql` (nuove colonne
+    `destination_kind`/`destination_path` sulla tabella `downloads`).
+- **Bug reale trovato durante la verifica** (non legato alla feature
+  sopra, ma scoperto testandola con una build pulita): lo script
+  `build` di `apps/api/package.json` faceva
+  `cp -r src/db/migrations dist/db/migrations` — se `dist/db/migrations`
+  esiste già (qualunque build **dopo la prima**), `cp -r` la annida
+  dentro se stessa (`dist/db/migrations/migrations/...`) invece di
+  sovrascriverla, perché la cartella di destinazione esiste già.
+  **Conseguenza reale**: nessuna migrazione aggiunta dopo il primo
+  deploy sarebbe mai stata applicata, né in locale né — più grave — sul
+  Wyse reale tramite `npm run update` (Sistema → Aggiornamenti) o
+  l'aggiornamento manuale da riga di comando, entrambi descritti in
+  `README.md`. Corretto con `rm -rf dist/db/migrations &&` prima della
+  copia, rendendo lo script idempotente. Verificato dal vivo: build
+  pulita → bug riprodotto (`table downloads has no column named
+  destination_kind` dalla nuova colonna); fix applicato → rebuild →
+  migrazione applicata correttamente, confermato con un'istanza Hub API
+  isolata (DB e `HUB_DATA_ROOT` temporanei) e richieste reali via curl
+  (serie, film, e comportamento di default invariato).
+
 ### Prossimi passi (prossima sessione)
 
 1. **Tunnel Cloudflare (accesso remoto)**: avvio sospeso più volte in

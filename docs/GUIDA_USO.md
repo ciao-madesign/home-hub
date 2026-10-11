@@ -31,18 +31,23 @@ parte dove esplicitamente indicato.
 
 Es: escono nuovi episodi di una serie che hai già in libreria.
 
-1. Scarica l'episodio (dal Download Manager dell'Hub, o da torrent/altra
-   fonte).
-2. Sposta il file nella cartella giusta **senza terminale**, collegandoti
+**Se scarichi dal Download Manager dell'Hub** (torrent o URL): nel form
+"Aggiungi" scegli **Salva in → Serie TV** e scrivi la sottocartella
+esatta, es. `X Factor Italia/Season 20` — il file viene scritto
+direttamente lì, niente spostamento manuale. Poi solo il passo 3 sotto.
+
+**Se il file arriva da altrove** (chiavetta, altro dispositivo):
+
+1. Sposta il file nella cartella giusta **senza terminale**, collegandoti
    alla condivisione di rete `Media`:
    - **Mac**: Finder → Vai → Connetti al server (⌘K) →
      `smb://192.168.1.8/Media`
    - **Windows**: Esplora file → barra indirizzo → `\\192.168.1.8\Media`
    - Credenziali: utente Samba (michele) + password impostata.
    - Trascina il file dentro `Series/<Nome Serie>/Season NN/`.
-3. Apri Jellyfin (`http://192.168.1.8:8096`) → **Libreria → Scansiona
+2. Apri Jellyfin (`http://192.168.1.8:8096`) → **Libreria → Scansiona
    tutte le librerie** (o aspetta la scansione automatica periodica).
-4. L'episodio compare nella serie già esistente, nell'ordine corretto.
+3. L'episodio compare nella serie già esistente, nell'ordine corretto.
 
 Non serve creare/ricreare nessuna libreria per questo caso.
 
@@ -52,9 +57,10 @@ Non serve creare/ricreare nessuna libreria per questo caso.
 
 Es: inizi a seguire una serie nuova, mai scaricata finora.
 
-1. Scarica i primi episodi e spostali (come sopra) dentro una **nuova
-   sottocartella** con il nome della serie, es.
-   `Media/Series/Nome Serie/Season 01/`.
+1. Scarica i primi episodi dentro una **nuova sottocartella** con il
+   nome della serie, es. `Media/Series/Nome Serie/Season 01/` — dal
+   Download Manager dell'Hub scegliendo **Salva in → Serie TV** (vedi
+   sopra), oppure spostandoli a mano via Samba.
 2. Su Jellyfin → pannello admin → **Librerie → Aggiungi libreria
    multimediale**:
    - Tipo di contenuto: **Programmi TV**
@@ -77,15 +83,27 @@ prossima scansione (la libreria "Film" copre già tutta quella cartella).
 
 ---
 
-## Scaricare con il Download Manager e spostare i file
+## Scaricare con il Download Manager
 
-1. Avvia il download dalla pagina **Download** della Web App dell'Hub
-   (URL diretto o file torrent).
-2. Il file compare nella cartella condivisa `Downloads` (anche mentre è
+Nel form "Aggiungi" della pagina **Download**, scegli dove salvare prima
+di avviare il download:
+
+- **Film**: salva direttamente dentro `Media/Movies/` — basta una
+  scansione libreria su Jellyfin dopo, niente spostamento.
+- **Serie TV**: indica la sottocartella esatta (es.
+  `X Factor Italia/Season 20`) — salva direttamente lì dentro
+  `Media/Series/`.
+- **Downloads (sposta a mano dopo)**: comportamento storico, utile se
+  non sai ancora dove classificarlo o per contenuti che non vanno in
+  libreria Jellyfin.
+
+Se scegli "Downloads":
+
+1. Il file compare nella cartella condivisa `Downloads` (anche mentre è
    ancora in corso):
    - **Mac**: `smb://192.168.1.8/Downloads`
    - **Windows**: `\\192.168.1.8\Downloads`
-3. A download completato, **sposta il file manualmente** dentro
+2. A download completato, **sposta il file manualmente** dentro
    `Media/Movies/` o `Media/Series/...` seguendo le istruzioni sopra —
    il Download Manager e la libreria Jellyfin sono due aree separate, lo
    spostamento non è automatico.

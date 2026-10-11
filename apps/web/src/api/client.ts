@@ -253,6 +253,13 @@ async function uploadFiles(
 
 export type DownloadKind = "url" | "torrent";
 export type DownloadStatus = "queued" | "downloading" | "paused" | "completed" | "error";
+export type DestinationKind = "downloads" | "movie" | "series";
+
+export interface DownloadDestination {
+  destinationKind: DestinationKind;
+  /** Obbligatorio solo per destinationKind "series", es. "X Factor Italia/Season 20". */
+  destinationPath?: string;
+}
 
 export interface DownloadItem {
   id: string;
@@ -265,11 +272,21 @@ export interface DownloadItem {
   downloadedBytes: number | null;
   speedBytesPerSec: number | null;
   errorMessage: string | null;
+  destinationKind: DestinationKind;
+  destinationPath: string | null;
   createdAt: string;
 }
 
-async function uploadTorrentFile(file: File): Promise<{ download: DownloadItem }> {
+async function uploadTorrentFile(
+  file: File,
+  destination: DownloadDestination = { destinationKind: "downloads" },
+): Promise<{ download: DownloadItem }> {
   const form = new FormData();
+  // I campi di destinazione vanno aggiunti PRIMA del file: @fastify/multipart
+  // analizza lo stream in ordine, e i campi dopo il file non sono ancora
+  // disponibili in `file.fields` nel momento in cui l'Hub API legge il file.
+  form.append("destinationKind", destination.destinationKind);
+  if (destination.destinationPath) form.append("destinationPath", destination.destinationPath);
   form.append("file", file);
 
   const token = getToken();
@@ -605,15 +622,18 @@ export const api = {
     ),
 
   listDownloads: () => request<{ downloads: DownloadItem[] }>("/downloads"),
-  addUrlDownload: (source: string) =>
+  addUrlDownload: (source: string, destination: DownloadDestination = { destinationKind: "downloads" }) =>
     request<{ download: DownloadItem }>("/downloads", {
       method: "POST",
-      body: JSON.stringify({ kind: "url", source }),
+      body: JSON.stringify({ kind: "url", source, ...destination }),
     }),
-  addTorrentDownload: (magnetUri: string) =>
+  addTorrentDownload: (
+    magnetUri: string,
+    destination: DownloadDestination = { destinationKind: "downloads" },
+  ) =>
     request<{ download: DownloadItem }>("/downloads", {
       method: "POST",
-      body: JSON.stringify({ kind: "torrent", source: magnetUri }),
+      body: JSON.stringify({ kind: "torrent", source: magnetUri, ...destination }),
     }),
   uploadTorrentFile,
   pauseDownload: (id: string) =>

@@ -3,6 +3,8 @@ import { getDb } from "../../db/index.js";
 
 export type DownloadKind = "url" | "torrent";
 export type DownloadStatus = "queued" | "downloading" | "paused" | "completed" | "error";
+/** Dove salvare il download (§12, smistamento automatico): "downloads" è il comportamento storico (richiede spostamento manuale, vedi docs/GUIDA_USO.md), "movie"/"series" salvano direttamente nella libreria Jellyfin. */
+export type DestinationKind = "downloads" | "movie" | "series";
 
 export interface DownloadRow {
   id: string;
@@ -16,6 +18,9 @@ export interface DownloadRow {
   downloaded_bytes: number | null;
   speed_bytes_per_sec: number | null;
   error_message: string | null;
+  destination_kind: DestinationKind;
+  /** Sottocartella dentro Media/Series (es. "X Factor Italia/Season 20"), solo quando destination_kind è "series". */
+  destination_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +39,8 @@ export interface DownloadDto {
   downloadedBytes: number | null;
   speedBytesPerSec: number | null;
   errorMessage: string | null;
+  destinationKind: DestinationKind;
+  destinationPath: string | null;
   createdAt: string;
 }
 
@@ -49,15 +56,25 @@ export function toDownloadDto(row: DownloadRow): DownloadDto {
     downloadedBytes: row.downloaded_bytes,
     speedBytesPerSec: row.speed_bytes_per_sec,
     errorMessage: row.error_message,
+    destinationKind: row.destination_kind,
+    destinationPath: row.destination_path,
     createdAt: row.created_at,
   };
 }
 
-export function createDownload(userId: string, kind: DownloadKind, source: string): DownloadRow {
+export function createDownload(
+  userId: string,
+  kind: DownloadKind,
+  source: string,
+  destinationKind: DestinationKind,
+  destinationPath: string | null,
+): DownloadRow {
   const id = randomUUID();
   getDb()
-    .prepare(`INSERT INTO downloads (id, user_id, kind, source) VALUES (?, ?, ?, ?)`)
-    .run(id, userId, kind, source);
+    .prepare(
+      `INSERT INTO downloads (id, user_id, kind, source, destination_kind, destination_path) VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(id, userId, kind, source, destinationKind, destinationPath);
   return getDownload(id)!;
 }
 
